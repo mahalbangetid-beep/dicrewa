@@ -1,0 +1,753 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// DATABASE CONFIGURATION
+// For SQLite (development): DATABASE_URL="file:./dev.db"
+// For PostgreSQL (production): DATABASE_URL="postgresql://user:password@host:5432/kewhats?schema=public"
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== AUTH ====================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("user")
+  avatar    String?
+  isActive  Boolean  @default(true)
+  plan      String   @default("free") // free, pro, enterprise, unlimited
+  quota     Int      @default(1500)   // monthly message quota
+  used      Int      @default(0)      // messages used this month
+  lastQuotaReset DateTime @default(now())
+  aiApiKey  String?  // User's personal Gemini API key
+  embeddingApiKey String? // User's personal OpenAI API key for RAG (BYOK)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  apiKeys            ApiKey[]
+  devices            Device[]
+  quickReplies       QuickReply[]
+  templates          Template[]
+  templateCategories TemplateCategory[]
+  integrations       Integration[]
+  subscription       Subscription?
+  ownedTeams         Team[]       @relation("TeamOwner")
+  teamMemberships    TeamMember[]
+  knowledgeBases     KnowledgeBase[]
+  knowledgeUsage     KnowledgeUsage[]
+  branding           Branding?
+  passwordResetTokens PasswordResetToken[]
+  
+  // Multi-tenant data ownership
+  contacts       Contact[]
+  tags           Tag[]
+  autoReplyRules AutoReplyRule[]
+  webhooks       Webhook[]
+}
+
+// ==================== PASSWORD RESET ====================
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+// ==================== WHITE-LABEL / BRANDING ====================
+
+model Branding {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  
+  // App Identity
+  appName     String?  // Custom app name (replaces default)
+  logoUrl     String?  // URL to custom logo
+  faviconUrl  String?  // URL to custom favicon
+  
+  // Colors
+  primaryColor   String?  // Primary brand color (hex)
+  secondaryColor String?  // Secondary color (hex)
+  accentColor    String?  // Accent color (hex)
+  
+  // Footer & Branding
+  footerText     String?  // Custom footer text
+  showPoweredBy  Boolean  @default(true)  // Show "Powered by..." text
+  
+  // Custom Domain (for future use)
+  customDomain   String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  userId    String
+  isActive  Boolean  @default(true)
+  lastUsed  DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==================== DEVICES ====================
+
+model Device {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String?
+  status       String   @default("pending") // pending, connected, disconnected
+  sessionData  String?  // Store session JSON
+  lastActive   DateTime?
+  userId       String
+  spreadsheetUrl String? // Link to Google Sheets CSV
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      Message[]
+  broadcasts    Broadcast[]
+  autoReplies   AutoReplyRule[]
+  conversations Conversation[]
+  chatbots      Chatbot[]
+  groups        GroupInfo[]
+}
+
+// ==================== MESSAGES ====================
+
+model Message {
+  id          String   @id @default(cuid())
+  deviceId    String
+  waMessageId String?  // ID dari WhatsApp (Baileys key.id)
+  type        String   @default("outgoing") // incoming, outgoing
+  mediaType   String?  // text, image, video, document, audio
+  to          String?  // For outgoing messages
+  toName      String?
+  from        String?  // For incoming messages
+  fromName    String?
+  message     String
+  mediaUrl    String?
+  status      String   @default("pending") // pending, sent, delivered, read, failed
+  error       String?
+  broadcastId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  device    Device     @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  broadcast Broadcast? @relation(fields: [broadcastId], references: [id])
+
+  @@index([deviceId])
+  @@index([broadcastId])
+}
+
+// ==================== CONTACTS ====================
+
+model Contact {
+  id        String   @id @default(cuid())
+  userId    String   // Multi-tenant: contact belongs to user
+  name      String
+  phone     String   // Now unique per user, not globally
+  email     String?
+  notes     String?
+  isBlocked Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags ContactTag[]
+
+  @@unique([userId, phone]) // Phone unique per user
+  @@index([userId])
+  @@index([phone])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  userId    String   // Multi-tenant: tag belongs to user
+  name      String   // Now unique per user, not globally
+  color     String   @default("#25D366")
+  createdAt DateTime @default(now())
+
+  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contacts ContactTag[]
+
+  @@unique([userId, name]) // Tag name unique per user
+  @@index([userId])
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+// ==================== AUTO REPLY ====================
+
+model AutoReplyRule {
+  id              String   @id @default(cuid())
+  userId          String   // Multi-tenant: rule belongs to user
+  name            String
+  trigger         String   // Keywords separated by comma
+  triggerType     String   @default("contains") // exact, contains, startswith, regex
+  response        String
+  mediaUrl        String?
+  isActive        Boolean  @default(true)
+  priority        Int      @default(0)
+  deviceId        String?  // null = applies to all devices
+  triggerCount    Int      @default(0)
+  
+  // RAG Fallback - use Smart Knowledge when no rule matches
+  useRagFallback    Boolean  @default(false)
+  knowledgeBaseId   String?
+  ragFallbackMessage String? // Message when RAG also can't answer
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device        Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  knowledgeBase KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([deviceId])
+}
+
+// Model untuk menyimpan pesan yang sudah diproses auto-reply (deduplication)
+model ProcessedAutoReply {
+  id          String   @id @default(cuid())
+  messageKey  String   @unique // Format: deviceId:from:messageId
+  processedAt DateTime @default(now())
+
+  @@index([processedAt]) // For cleanup queries
+}
+
+// ==================== WEBHOOKS ====================
+
+model Webhook {
+  id         String   @id @default(cuid())
+  userId     String   // Multi-tenant: webhook belongs to user
+  name       String
+  url        String
+  secret     String
+  events     String   // JSON array of events
+  status     String   @default("active") // active, inactive
+  lastCalled DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs WebhookLog[]
+
+  @@index([userId])
+}
+
+model WebhookLog {
+  id           String   @id @default(cuid())
+  webhookId    String
+  event        String
+  payload      String   // JSON
+  responseCode Int?
+  responseBody String?
+  duration     Int?     // milliseconds
+  status       String   @default("pending") // pending, success, failed
+  createdAt    DateTime @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+}
+
+// ==================== BROADCAST ====================
+
+model Broadcast {
+  id              String   @id @default(cuid())
+  name            String
+  deviceId        String
+  userId          String?  // Direct user reference for quota tracking
+  message         String
+  mediaUrl        String?
+  status          String   @default("draft") // draft, scheduled, running, completed, cancelled, paused
+  totalRecipients Int      @default(0)
+  sent            Int      @default(0)
+  delivered       Int      @default(0)
+  read            Int      @default(0)
+  failed          Int      @default(0)
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  // Advanced Scheduling Fields (Phase 8)
+  isRecurring     Boolean  @default(false)
+  recurringType   String?  // daily, weekly, monthly, custom
+  recurringDays   String?  // JSON array: [0,1,2,3,4,5,6] for weekly (0=Sunday)
+  recurringTime   String?  // HH:mm format
+  timezone        String   @default("Asia/Jakarta")
+  nextRunAt       DateTime?
+  lastRunAt       DateTime?
+  runCount        Int      @default(0)
+  maxRuns         Int?     // null = unlimited
+  priority        Int      @default(5) // 1-10, higher = more priority
+  delayBetween    Int      @default(3) // seconds between each message
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  device     Device                @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  recipients BroadcastRecipient[]
+  messages   Message[]
+  
+  @@index([userId])
+}
+
+model BroadcastRecipient {
+  id          String   @id @default(cuid())
+  broadcastId String
+  phone       String
+  name        String?
+  status      String   @default("pending") // pending, sent, delivered, read, failed
+  error       String?
+  sentAt      DateTime?
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+
+  @@index([broadcastId])
+}
+
+// ==================== INBOX & CONVERSATIONS ====================
+
+model Conversation {
+  id            String   @id @default(cuid())
+  deviceId      String
+  remoteJid     String   // WhatsApp JID (e.g., 628xxx@s.whatsapp.net)
+  name          String?
+  pushName      String?  // Name from WhatsApp profile
+  avatar        String?
+  lastMessage   String?
+  lastMessageAt DateTime?
+  unreadCount   Int      @default(0)
+  isArchived    Boolean  @default(false)
+  isPinned      Boolean  @default(false)
+  isGroup       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, remoteJid])
+  @@index([deviceId])
+  @@index([lastMessageAt])
+}
+
+model QuickReply {
+  id        String   @id @default(cuid())
+  shortcut  String   // e.g. "/thanks", "/hello"
+  content   String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shortcut])
+}
+
+// ==================== TEMPLATES ====================
+
+model TemplateCategory {
+  id        String     @id @default(cuid())
+  name      String
+  color     String     @default("#6366f1")
+  userId    String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templates Template[]
+
+  @@unique([userId, name])
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  content     String   // Supports {{variable}} syntax
+  categoryId  String?
+  mediaUrl    String?
+  mediaType   String?  // image, video, document
+  usageCount  Int      @default(0)
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category TemplateCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([categoryId])
+}
+
+// ==================== CHATBOTS ====================
+
+model Chatbot {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(false)
+  deviceId    String?
+  nodes       String   @default("[]") // JSON string for flow nodes
+  edges       String   @default("[]") // JSON string for flow edges
+  triggerType String   @default("keyword") // keyword, all, webhook
+  triggerKeywords String? // Comma-separated keywords
+  userId      String
+  executionCount Int   @default(0)
+  lastExecutedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([isActive])
+}
+
+// ==================== SETTINGS ====================
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   // JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==================== SECURITY ====================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // login, logout, create, update, delete, etc.
+  resource  String   // devices, chatbots, templates, etc.
+  resourceId String?
+  details   String?  // JSON string with additional info
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  ipAddress   String?
+  userAgent   String?
+  device      String?  // browser, mobile, etc.
+  location    String?
+  lastActive  DateTime @default(now())
+  expiresAt   DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+// ==================== INTEGRATIONS ====================
+
+model Integration {
+  id           String   @id @default(cuid())
+  name         String
+  type         String   // google_sheets, airtable, notion, telegram, discord, slack, email, custom_webhook
+  category     String   // spreadsheet, database, notification, automation
+  config       String   // JSON config (API keys, tokens, URLs, field mappings)
+  isActive     Boolean  @default(true)
+  status       String   @default("pending") // pending, connected, error, syncing
+  lastSyncAt   DateTime?
+  syncInterval Int?     // in minutes (null = manual only)
+  syncCount    Int      @default(0)
+  errorMessage String?
+  userId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs IntegrationLog[]
+
+  @@index([userId])
+  @@index([type])
+  @@index([isActive])
+}
+
+model IntegrationLog {
+  id            String   @id @default(cuid())
+  integrationId String
+  action        String   // sync, push, fetch, test, error
+  direction     String   // inbound, outbound
+  recordsCount  Int      @default(0)
+  status        String   // success, failed, partial
+  details       String?  // JSON with additional info
+  duration      Int?     // milliseconds
+  createdAt     DateTime @default(now())
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId])
+  @@index([createdAt])
+}
+
+// ==================== BILLING & SUBSCRIPTION (Phase 10) ====================
+
+model Subscription {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  plan             String    // free, pro, enterprise, unlimited
+  status           String    @default("active") // active, cancelled, past_due, expired
+  billingCycle     String    @default("monthly") // monthly, yearly
+  priceAmount      Int       @default(0) // in smallest currency unit (rupiah)
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  subscriptionId  String?
+  userId          String
+  invoiceNumber   String   @unique
+  amount          Int      // in smallest currency unit (rupiah)
+  status          String   @default("pending") // pending, paid, failed, expired, refunded
+  paymentGateway  String?  // xendit, midtrans
+  paymentMethod   String?  // e.g., bank_transfer, credit_card, ewallet
+  externalId      String?  // ID from payment gateway
+  paymentUrl      String?  // URL to pay (if applicable)
+  paidAt          DateTime?
+  expiredAt       DateTime?
+  description     String?
+  metadata        String?  // JSON for additional data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  
+  @@index([userId])
+  @@index([status])
+  @@index([externalId])
+}
+
+model PaymentConfig {
+  id           String   @id @default(cuid())
+  gateway      String   // xendit, midtrans
+  isActive     Boolean  @default(false)
+  mode         String   @default("sandbox") // sandbox, production
+  // Xendit fields
+  xenditApiKey        String?
+  xenditSecretKey     String?
+  xenditCallbackToken String?
+  // Midtrans fields
+  midtransServerKey   String?
+  midtransClientKey   String?
+  // Common fields
+  webhookUrl   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Pricing plans configuration (stored in code/DB or can be in separate table)
+model PricingPlan {
+  id          String  @id @default(cuid())
+  name        String  @unique // free, pro, enterprise, unlimited
+  displayName String
+  description String?
+  monthlyPrice Int    @default(0)
+  yearlyPrice  Int    @default(0)
+  quota       Int     @default(1500)
+  features    String  // JSON array of features
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==================== TEAM COLLABORATION (Phase 4) ====================
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String
+  avatar      String?
+  isActive    Boolean  @default(true)
+  settings    String?  // JSON for team settings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner   User         @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members TeamMember[]
+  invites TeamInvite[]
+
+  @@index([ownerId])
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  role      String   @default("member") // owner, admin, member
+  permissions String? // JSON array of specific permissions
+  joinedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+model TeamInvite {
+  id        String   @id @default(cuid())
+  teamId    String
+  email     String
+  role      String   @default("member") // admin, member
+  token     String   @unique
+  status    String   @default("pending") // pending, accepted, expired, cancelled
+  invitedBy String   // userId of inviter
+  expiresAt DateTime
+  acceptedAt DateTime?
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([email])
+  @@index([token])
+}
+
+// ==================== GROUP MANAGEMENT (Phase 7) ====================
+
+model GroupInfo {
+  id           String   @id @default(cuid())
+  deviceId     String
+  groupJid     String   // WhatsApp group ID
+  name         String
+  description  String?
+  subject      String?
+  owner        String?  // Owner JID
+  memberCount  Int      @default(0)
+  isAdmin      Boolean  @default(false)
+  isMuted      Boolean  @default(false)
+  profilePicUrl String?
+  lastSyncAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  device  Device        @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  members GroupMember[]
+
+  @@unique([deviceId, groupJid])
+  @@index([deviceId])
+  @@index([groupJid])
+}
+
+model GroupMember {
+  id         String   @id @default(cuid())
+  groupId    String
+  memberJid  String   // Member's WhatsApp JID
+  name       String?
+  isAdmin    Boolean  @default(false)
+  isSuperAdmin Boolean @default(false)
+  joinedAt   DateTime?
+  addedBy    String?  // JID of who added them
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  group GroupInfo @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, memberJid])
+  @@index([groupId])
+  @@index([memberJid])
+}
+
+// ==================== SMART KNOWLEDGE (RAG) ====================
+
+model KnowledgeBase {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  content      String   // Raw text content
+  userId       String
+  deviceIds    String?  // JSON array of device IDs that can use this (null = all)
+  status       String   @default("pending") // pending, processing, ready, error
+  chunkCount   Int      @default(0)
+  isActive     Boolean  @default(true)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunks      KnowledgeChunk[]
+  autoReplies AutoReplyRule[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([isActive])
+}
+
+model KnowledgeChunk {
+  id              String   @id @default(cuid())
+  knowledgeBaseId String
+  content         String   // Chunk text
+  embedding       String   // JSON array of floats (1536 dimensions)
+  tokenCount      Int
+  chunkIndex      Int      // Order in the document
+  createdAt       DateTime @default(now())
+
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeBaseId])
+}
+
+model KnowledgeUsage {
+  id         String   @id @default(cuid())
+  userId     String
+  month      String   // Format: "2024-01" for monthly tracking
+  queryCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@index([userId])
+}

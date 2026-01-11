@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.clone
+server/.env
+server/.env.local
+
+# Database
+server/prisma/dev.db
+server/prisma/dev.db-journal
+server/prisma/prod.db
+server/prisma/prod.db-journal
+
+# WhatsApp sessions
+server/sessions/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.zip
+*.tar.gz
+nul
+
+# Token/secrets
+token.json
+
+# Documentation that's not needed
+mainwa/
