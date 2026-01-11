@@ -19,7 +19,9 @@ import {
     ExternalLink,
     Brain,
     Sparkles,
-    Image
+    Image,
+    Palette,
+    Crown
 } from 'lucide-react'
 import { settingsService } from '../services/api'
 import { API_URL } from '../utils/config'
@@ -36,8 +38,13 @@ const baseSections = [
 ]
 
 const adminSections = [
-    { id: 'branding', label: 'Branding & Logo', icon: Image, adminOnly: true },
+    { id: 'system-branding', label: 'System Branding', icon: Image, adminOnly: true },
     { id: 'payment', label: 'Payment Gateway', icon: CreditCard, adminOnly: true },
+]
+
+// Sections for Unlimited plan users only
+const unlimitedSections = [
+    { id: 'custom-branding', label: 'Custom Branding', icon: Palette },
 ]
 
 export default function Settings() {
@@ -86,13 +93,27 @@ export default function Settings() {
     const [validatingKey, setValidatingKey] = useState(false)
     const [keyValidation, setKeyValidation] = useState(null) // { valid: true/false, message: '' }
 
-    // Branding State
+    // Branding State (Admin - System level)
     const [brandingSettings, setBrandingSettings] = useState({
         logo_landing: '',
         logo_dashboard: '',
         app_name: 'KeWhats',
         primary_color: '#25D366'
     })
+
+    // Custom Branding State (User level - Unlimited plan only)
+    const [customBranding, setCustomBranding] = useState({
+        appName: '',
+        logoUrl: '',
+        faviconUrl: '',
+        primaryColor: '#22c55e',
+        secondaryColor: '#16a34a',
+        accentColor: '#4ade80',
+        footerText: '',
+        showPoweredBy: true
+    })
+    const [brandingAccess, setBrandingAccess] = useState({ allowed: false, reason: '' })
+
     useEffect(() => {
         fetchProfile()
     }, [])
@@ -124,7 +145,11 @@ export default function Settings() {
             fetchSettings()
             fetchBrandingSettings()
         }
-    }, [user.role])
+        // Fetch custom branding for all users (access will be checked server-side)
+        if (user.plan === 'unlimited') {
+            fetchCustomBranding()
+        }
+    }, [user.role, user.plan])
 
     const fetchBrandingSettings = async () => {
         try {
@@ -161,6 +186,87 @@ export default function Settings() {
             }
         } catch (error) {
             setMessage({ type: 'error', text: 'Failed to save branding settings' })
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    // Fetch custom branding access and settings (Unlimited plan)
+    const fetchCustomBranding = async () => {
+        try {
+            // Check access first
+            const accessRes = await fetch(`${API_URL}/branding/access`, {
+                headers: getAuthHeader()
+            })
+            const accessData = await accessRes.json()
+            if (accessData.success) {
+                setBrandingAccess(accessData.data)
+            }
+
+            // If has access, fetch current branding
+            if (accessData.data?.allowed) {
+                const res = await fetch(`${API_URL}/branding`, {
+                    headers: getAuthHeader()
+                })
+                const data = await res.json()
+                if (data.success && data.data) {
+                    setCustomBranding(prev => ({
+                        ...prev,
+                        ...data.data
+                    }))
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch custom branding:', error)
+        }
+    }
+
+    const handleSaveCustomBranding = async () => {
+        setSaving(true)
+        setMessage(null)
+        try {
+            const res = await fetch(`${API_URL}/branding`, {
+                method: 'PUT',
+                headers: getAuthHeader(),
+                body: JSON.stringify(customBranding)
+            })
+            const data = await res.json()
+            if (data.success) {
+                setMessage({ type: 'success', text: 'Custom branding saved successfully!' })
+            } else {
+                throw new Error(data.message)
+            }
+        } catch (error) {
+            setMessage({ type: 'error', text: error.message || 'Failed to save custom branding' })
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleResetCustomBranding = async () => {
+        if (!window.confirm('Are you sure you want to reset branding to defaults?')) return
+        setSaving(true)
+        try {
+            const res = await fetch(`${API_URL}/branding/reset`, {
+                method: 'POST',
+                headers: getAuthHeader()
+            })
+            const data = await res.json()
+            if (data.success) {
+                setCustomBranding({
+                    appName: '',
+                    logoUrl: '',
+                    faviconUrl: '',
+                    primaryColor: '#22c55e',
+                    secondaryColor: '#16a34a',
+                    accentColor: '#4ade80',
+                    footerText: '',
+                    showPoweredBy: true
+                })
+                setMessage({ type: 'success', text: 'Branding reset to defaults' })
+            }
+        } catch (error) {
+            setMessage({ type: 'error', text: 'Failed to reset branding' })
         } finally {
             setSaving(false)
         }
@@ -355,8 +461,12 @@ export default function Settings() {
             <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: 'var(--spacing-xl)' }}>
                 {/* Sidebar Navigation */}
                 <div className="card" style={{ height: 'fit-content', padding: 'var(--spacing-sm)' }}>
-                    {/* Combine base sections with admin sections if user is admin */}
-                    {[...baseSections, ...(user.role === 'admin' ? adminSections : [])].map((section) => (
+                    {/* Combine base sections with unlimited/admin sections based on plan/role */}
+                    {[
+                        ...baseSections,
+                        ...(user.plan === 'unlimited' ? unlimitedSections : []),
+                        ...(user.role === 'admin' ? adminSections : [])
+                    ].map((section) => (
                         <button
                             key={section.id}
                             className={`nav-item ${activeSection === section.id ? 'active' : ''}`}
@@ -768,13 +878,13 @@ export default function Settings() {
                         </div>
                     )}
 
-                    {/* Branding & Logo - Admin Only */}
-                    {activeSection === 'branding' && user.role === 'admin' && (
+                    {/* System Branding - Admin Only */}
+                    {activeSection === 'system-branding' && user.role === 'admin' && (
                         <div className="card">
                             <div className="card-header">
                                 <div>
-                                    <h3 className="card-title">Branding & Logo</h3>
-                                    <p className="card-subtitle">Customize your application appearance</p>
+                                    <h3 className="card-title">System Branding</h3>
+                                    <p className="card-subtitle">Global branding for all users (Admin only)</p>
                                 </div>
                                 <button className="btn btn-primary" onClick={handleSaveBranding} disabled={saving}>
                                     {saving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />}
@@ -858,6 +968,177 @@ export default function Settings() {
                                     Logo changes will take effect after saving. Make sure your logo URLs are publicly accessible.
                                 </p>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Custom Branding - Unlimited Plan Only */}
+                    {activeSection === 'custom-branding' && (
+                        <div className="card">
+                            <div className="card-header">
+                                <div>
+                                    <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+                                        <Crown size={20} style={{ color: 'var(--warning)' }} />
+                                        Custom Branding
+                                    </h3>
+                                    <p className="card-subtitle">White-label branding for your account (Unlimited plan)</p>
+                                </div>
+                                <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                    <button className="btn btn-ghost" onClick={handleResetCustomBranding} disabled={saving}>
+                                        <RefreshCw size={16} />
+                                        Reset
+                                    </button>
+                                    <button className="btn btn-primary" onClick={handleSaveCustomBranding} disabled={saving || !brandingAccess.allowed}>
+                                        {saving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />}
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </div>
+
+                            {!brandingAccess.allowed ? (
+                                <div style={{ padding: 'var(--spacing-xl)', textAlign: 'center' }}>
+                                    <Crown size={48} style={{ color: 'var(--warning)', marginBottom: 'var(--spacing-md)' }} />
+                                    <h4 style={{ marginBottom: 'var(--spacing-sm)' }}>Upgrade to Unlimited</h4>
+                                    <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--spacing-md)' }}>
+                                        {brandingAccess.reason || 'Custom branding is only available for Unlimited plan users.'}
+                                    </p>
+                                    <a href="/billing" className="btn btn-primary">
+                                        <Sparkles size={16} />
+                                        Upgrade Plan
+                                    </a>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'grid', gap: 'var(--spacing-lg)' }}>
+                                    <div className="form-group">
+                                        <label className="form-label">App Name</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="Your App Name"
+                                            value={customBranding.appName || ''}
+                                            onChange={(e) => setCustomBranding({ ...customBranding, appName: e.target.value })}
+                                        />
+                                        <p className="form-hint">Custom name displayed in your app</p>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label className="form-label">Logo URL</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="https://example.com/your-logo.png"
+                                            value={customBranding.logoUrl || ''}
+                                            onChange={(e) => setCustomBranding({ ...customBranding, logoUrl: e.target.value })}
+                                        />
+                                        <p className="form-hint">Your custom logo (recommended: 200x50px)</p>
+                                        {customBranding.logoUrl && (
+                                            <div style={{ marginTop: 'var(--spacing-sm)', padding: 'var(--spacing-md)', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+                                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 'var(--spacing-xs)' }}>Preview:</p>
+                                                <img src={customBranding.logoUrl} alt="Logo Preview" style={{ maxHeight: '50px', maxWidth: '200px' }} onError={(e) => e.target.style.display = 'none'} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label className="form-label">Favicon URL</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="https://example.com/favicon.ico"
+                                            value={customBranding.faviconUrl || ''}
+                                            onChange={(e) => setCustomBranding({ ...customBranding, faviconUrl: e.target.value })}
+                                        />
+                                        <p className="form-hint">Browser tab icon (recommended: 32x32px)</p>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--spacing-md)' }}>
+                                        <div className="form-group">
+                                            <label className="form-label">Primary Color</label>
+                                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                                                <input
+                                                    type="color"
+                                                    value={customBranding.primaryColor || '#22c55e'}
+                                                    onChange={(e) => setCustomBranding({ ...customBranding, primaryColor: e.target.value })}
+                                                    style={{ width: '50px', height: '35px', padding: 0, border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                                                />
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
+                                                    value={customBranding.primaryColor || '#22c55e'}
+                                                    onChange={(e) => setCustomBranding({ ...customBranding, primaryColor: e.target.value })}
+                                                    style={{ flex: 1 }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="form-label">Secondary Color</label>
+                                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                                                <input
+                                                    type="color"
+                                                    value={customBranding.secondaryColor || '#16a34a'}
+                                                    onChange={(e) => setCustomBranding({ ...customBranding, secondaryColor: e.target.value })}
+                                                    style={{ width: '50px', height: '35px', padding: 0, border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                                                />
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
+                                                    value={customBranding.secondaryColor || '#16a34a'}
+                                                    onChange={(e) => setCustomBranding({ ...customBranding, secondaryColor: e.target.value })}
+                                                    style={{ flex: 1 }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="form-label">Accent Color</label>
+                                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                                                <input
+                                                    type="color"
+                                                    value={customBranding.accentColor || '#4ade80'}
+                                                    onChange={(e) => setCustomBranding({ ...customBranding, accentColor: e.target.value })}
+                                                    style={{ width: '50px', height: '35px', padding: 0, border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                                                />
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
+                                                    value={customBranding.accentColor || '#4ade80'}
+                                                    onChange={(e) => setCustomBranding({ ...customBranding, accentColor: e.target.value })}
+                                                    style={{ flex: 1 }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label className="form-label">Footer Text</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="© 2026 Your Company. All rights reserved."
+                                            value={customBranding.footerText || ''}
+                                            onChange={(e) => setCustomBranding({ ...customBranding, footerText: e.target.value })}
+                                        />
+                                        <p className="form-hint">Custom footer text</p>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <div className="toggle-wrapper">
+                                            <label className="toggle">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={customBranding.showPoweredBy}
+                                                    onChange={(e) => setCustomBranding({ ...customBranding, showPoweredBy: e.target.checked })}
+                                                />
+                                                <span className="toggle-slider"></span>
+                                            </label>
+                                            <div>
+                                                <div style={{ fontWeight: 500 }}>Show "Powered by" text</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                    Display "Powered by KeWhats" in your app
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
