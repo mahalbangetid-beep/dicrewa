@@ -48,6 +48,24 @@ validateEnvironment();
 const initDatabase = () => {
     try {
         const { execSync } = require('child_process');
+        const fs = require('fs');
+        const path = require('path');
+
+        // Check if schema.prisma exists in prisma folder
+        const schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma');
+        const schemaFromNodeModules = path.join(process.cwd(), 'node_modules', '.prisma', 'client', 'schema.prisma');
+
+        if (!fs.existsSync(schemaPath)) {
+            console.log('📋 Schema.prisma not found, copying from node_modules...');
+            if (fs.existsSync(schemaFromNodeModules)) {
+                fs.mkdirSync(path.dirname(schemaPath), { recursive: true });
+                fs.copyFileSync(schemaFromNodeModules, schemaPath);
+                console.log('✅ Schema.prisma copied successfully');
+            } else {
+                console.warn('⚠️ Could not find schema.prisma in node_modules');
+            }
+        }
+
         console.log('🔄 Running Prisma DB Push to ensure tables exist...');
         execSync('npx prisma db push --accept-data-loss --skip-generate', {
             stdio: 'inherit',
