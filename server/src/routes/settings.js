@@ -142,7 +142,7 @@ router.post('/apikey', protect, async (req, res) => {
         });
 
         // Create new key
-        const key = 'sk_' + crypto.randomBytes(24).toString('hex');
+        const key = 'dk_' + crypto.randomBytes(24).toString('hex');
 
         await prisma.apiKey.create({
             data: {
