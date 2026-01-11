@@ -74,6 +74,10 @@ const monitoringSettingsNav = [
 export default function Sidebar({ collapsed, onToggle }) {
     const navigate = useNavigate()
     const [user, setUser] = useState(null)
+    const [branding, setBranding] = useState({
+        logo_dashboard: '',
+        app_name: 'KeWhats'
+    })
 
     // Load user data from localStorage
     const loadUserData = () => {
@@ -88,8 +92,23 @@ export default function Sidebar({ collapsed, onToggle }) {
         }
     }
 
+    // Fetch branding settings
+    const fetchBranding = async () => {
+        try {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+            const res = await fetch(`${API_URL}/system-settings/public`)
+            const data = await res.json()
+            if (data.success && data.data) {
+                setBranding(prev => ({ ...prev, ...data.data }))
+            }
+        } catch (error) {
+            console.error('Failed to fetch branding:', error)
+        }
+    }
+
     useEffect(() => {
         loadUserData()
+        fetchBranding()
 
         // Listen for storage changes (e.g., when Billing page updates plan)
         const handleStorageChange = () => {
@@ -115,10 +134,14 @@ export default function Sidebar({ collapsed, onToggle }) {
         <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
             <div className="sidebar-header">
                 <div className="sidebar-logo">
-                    <MessageCircle />
+                    {branding.logo_dashboard ? (
+                        <img src={branding.logo_dashboard} alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                    ) : (
+                        <MessageCircle />
+                    )}
                 </div>
                 <div className="sidebar-brand">
-                    <h1>KeWhats</h1>
+                    <h1>{branding.app_name || 'KeWhats'}</h1>
                     <span>WhatsApp Gateway</span>
                 </div>
                 <button

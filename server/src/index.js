@@ -378,6 +378,7 @@ app.use('/api/knowledge', knowledgeRoutes);
 app.use('/api/branding', require('./routes/branding'));
 app.use('/api/public', require('./routes/public'));
 app.use('/api/monitoring', require('./routes/monitoring'));
+app.use('/api/system-settings', require('./routes/systemSettings'));
 
 // Socket.IO connection handler
 io.on('connection', (socket) => {

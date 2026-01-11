@@ -18,7 +18,8 @@ import {
     CreditCard,
     ExternalLink,
     Brain,
-    Sparkles
+    Sparkles,
+    Image
 } from 'lucide-react'
 import { settingsService } from '../services/api'
 import { API_URL } from '../utils/config'
@@ -34,8 +35,8 @@ const baseSections = [
     // { id: 'storage', label: 'Storage', icon: Database },
 ]
 
-// Admin-only sections
 const adminSections = [
+    { id: 'branding', label: 'Branding & Logo', icon: Image, adminOnly: true },
     { id: 'payment', label: 'Payment Gateway', icon: CreditCard, adminOnly: true },
 ]
 
@@ -85,6 +86,13 @@ export default function Settings() {
     const [validatingKey, setValidatingKey] = useState(false)
     const [keyValidation, setKeyValidation] = useState(null) // { valid: true/false, message: '' }
 
+    // Branding State
+    const [brandingSettings, setBrandingSettings] = useState({
+        logo_landing: '',
+        logo_dashboard: '',
+        app_name: 'KeWhats',
+        primary_color: '#25D366'
+    })
     useEffect(() => {
         fetchProfile()
     }, [])
@@ -114,8 +122,49 @@ export default function Settings() {
     useEffect(() => {
         if (user.role === 'admin') {
             fetchSettings()
+            fetchBrandingSettings()
         }
     }, [user.role])
+
+    const fetchBrandingSettings = async () => {
+        try {
+            const res = await fetch(`${API_URL}/system-settings`, {
+                headers: getAuthHeader()
+            })
+            const data = await res.json()
+            if (data.success && data.data) {
+                setBrandingSettings(prev => ({
+                    ...prev,
+                    ...data.data
+                }))
+            }
+        } catch (error) {
+            console.error('Failed to fetch branding settings:', error)
+        }
+    }
+
+    const handleSaveBranding = async () => {
+        setSaving(true)
+        setMessage(null)
+        try {
+            const settings = Object.entries(brandingSettings).map(([key, value]) => ({ key, value }))
+            const res = await fetch(`${API_URL}/system-settings/bulk`, {
+                method: 'POST',
+                headers: getAuthHeader(),
+                body: JSON.stringify({ settings })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setMessage({ type: 'success', text: 'Branding settings saved successfully!' })
+            } else {
+                throw new Error(data.message)
+            }
+        } catch (error) {
+            setMessage({ type: 'error', text: 'Failed to save branding settings' })
+        } finally {
+            setSaving(false)
+        }
+    }
 
     const handleUpdateProfile = async () => {
         setSaving(true)
@@ -715,6 +764,99 @@ export default function Settings() {
                                         <div style={{ color: 'var(--success)' }}>Unlimited</div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Branding & Logo - Admin Only */}
+                    {activeSection === 'branding' && user.role === 'admin' && (
+                        <div className="card">
+                            <div className="card-header">
+                                <div>
+                                    <h3 className="card-title">Branding & Logo</h3>
+                                    <p className="card-subtitle">Customize your application appearance</p>
+                                </div>
+                                <button className="btn btn-primary" onClick={handleSaveBranding} disabled={saving}>
+                                    {saving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />}
+                                    Save Changes
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'grid', gap: 'var(--spacing-lg)' }}>
+                                <div className="form-group">
+                                    <label className="form-label">Application Name</label>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        placeholder="KeWhats"
+                                        value={brandingSettings.app_name}
+                                        onChange={(e) => setBrandingSettings({ ...brandingSettings, app_name: e.target.value })}
+                                    />
+                                    <p className="form-hint">Displayed in header and title</p>
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="form-label">Landing Page Logo URL</label>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        placeholder="https://example.com/logo.png"
+                                        value={brandingSettings.logo_landing}
+                                        onChange={(e) => setBrandingSettings({ ...brandingSettings, logo_landing: e.target.value })}
+                                    />
+                                    <p className="form-hint">Logo for the landing page (recommended: 200x50px)</p>
+                                    {brandingSettings.logo_landing && (
+                                        <div style={{ marginTop: 'var(--spacing-sm)', padding: 'var(--spacing-md)', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 'var(--spacing-xs)' }}>Preview:</p>
+                                            <img src={brandingSettings.logo_landing} alt="Landing Logo Preview" style={{ maxHeight: '50px', maxWidth: '200px' }} onError={(e) => e.target.style.display = 'none'} />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="form-label">Dashboard Logo URL</label>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        placeholder="https://example.com/logo-dashboard.png"
+                                        value={brandingSettings.logo_dashboard}
+                                        onChange={(e) => setBrandingSettings({ ...brandingSettings, logo_dashboard: e.target.value })}
+                                    />
+                                    <p className="form-hint">Logo for the sidebar/dashboard (recommended: 150x40px)</p>
+                                    {brandingSettings.logo_dashboard && (
+                                        <div style={{ marginTop: 'var(--spacing-sm)', padding: 'var(--spacing-md)', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
+                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 'var(--spacing-xs)' }}>Preview:</p>
+                                            <img src={brandingSettings.logo_dashboard} alt="Dashboard Logo Preview" style={{ maxHeight: '40px', maxWidth: '150px' }} onError={(e) => e.target.style.display = 'none'} />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="form-label">Primary Color</label>
+                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                                        <input
+                                            type="color"
+                                            value={brandingSettings.primary_color}
+                                            onChange={(e) => setBrandingSettings({ ...brandingSettings, primary_color: e.target.value })}
+                                            style={{ width: '60px', height: '40px', padding: 0, border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                                        />
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={brandingSettings.primary_color}
+                                            onChange={(e) => setBrandingSettings({ ...brandingSettings, primary_color: e.target.value })}
+                                            style={{ width: '120px' }}
+                                        />
+                                    </div>
+                                    <p className="form-hint">Main brand color (hex format)</p>
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: 'var(--spacing-lg)', padding: 'var(--spacing-md)', background: 'var(--info-light)', borderRadius: 'var(--radius-md)', display: 'flex', gap: 'var(--spacing-md)' }}>
+                                <AlertCircle size={20} style={{ color: 'var(--info)', flexShrink: 0 }} />
+                                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--info)' }}>
+                                    Logo changes will take effect after saving. Make sure your logo URLs are publicly accessible.
+                                </p>
                             </div>
                         </div>
                     )}
