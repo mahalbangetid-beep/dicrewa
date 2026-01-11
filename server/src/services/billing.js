@@ -219,14 +219,19 @@ const DEFAULT_PLANS = [
  * Initialize default pricing plans
  */
 const initializePlans = async () => {
-    for (const plan of DEFAULT_PLANS) {
-        await prisma.pricingPlan.upsert({
-            where: { name: plan.name },
-            update: plan,
-            create: plan
-        });
+    try {
+        for (const plan of DEFAULT_PLANS) {
+            await prisma.pricingPlan.upsert({
+                where: { name: plan.name },
+                update: plan,
+                create: plan
+            });
+        }
+        console.log('[Billing] Pricing plans initialized');
+    } catch (error) {
+        console.warn('[Billing] Could not initialize pricing plans:', error.message);
+        console.log('[Billing] Database tables may not exist yet - this is normal on first deploy');
     }
-    console.log('[Billing] Pricing plans initialized');
 };
 
 /**

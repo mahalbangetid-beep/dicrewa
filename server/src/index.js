@@ -48,8 +48,8 @@ validateEnvironment();
 const initDatabase = () => {
     try {
         const { execSync } = require('child_process');
-        console.log('🔄 Checking database schema...');
-        execSync('npx prisma db push --accept-data-loss', {
+        console.log('🔄 Running Prisma DB Push to ensure tables exist...');
+        execSync('npx prisma db push --accept-data-loss --skip-generate', {
             stdio: 'inherit',
             cwd: process.cwd()
         });
@@ -60,10 +60,8 @@ const initDatabase = () => {
     }
 };
 
-// Run in production only
-if (process.env.NODE_ENV === 'production') {
-    initDatabase();
-}
+// Always run to ensure database is ready
+initDatabase();
 // ================================================================
 
 const express = require('express');
