@@ -129,7 +129,7 @@ sudo systemctl restart nginx
 sudo npm install -g pm2
 
 cd /home/user/kewhats-deploy/server
-pm2 start npm --name "kewhats-api" -- start
+pm2 start npm --name "kewhats-frontend" -- start
 pm2 save
 pm2 startup
 ```

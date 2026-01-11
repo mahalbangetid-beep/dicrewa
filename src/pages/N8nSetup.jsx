@@ -93,7 +93,7 @@ export default function N8nSetup() {
                 {
                     "parameters": {
                         "method": "POST",
-                        "url": "https://kewhats.app/api/messages/send",
+                        "url": "https://api.kewhats.app/api/messages/send",
                         "sendHeaders": true,
                         "headerParameters": {
                             "parameters": [
@@ -351,7 +351,7 @@ export default function N8nSetup() {
 
                                 <div className="endpoint-badge">
                                     <span className="endpoint-method">POST</span>
-                                    https://kewhats.app/api/messages/send
+                                    https://api.kewhats.app/api/messages/send
                                 </div>
 
                                 <button
