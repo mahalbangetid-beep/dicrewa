@@ -928,12 +928,19 @@ class WhatsAppService {
 
         console.log(`[WA] Found ${sessionFolders.length} session folder(s) on disk`);
 
-        // Get all device IDs from database
-        const dbDevices = await prisma.device.findMany({
-            select: { id: true }
-        });
-        const dbDeviceIds = new Set(dbDevices.map(d => d.id));
-        console.log(`[WA] Found ${dbDeviceIds.size} device(s) in database`);
+        // Get all device IDs from database (with error handling for empty DB)
+        let dbDeviceIds = new Set();
+        try {
+            const dbDevices = await prisma.device.findMany({
+                select: { id: true }
+            });
+            dbDeviceIds = new Set(dbDevices.map(d => d.id));
+            console.log(`[WA] Found ${dbDeviceIds.size} device(s) in database`);
+        } catch (error) {
+            console.warn(`[WA] Database not ready or empty: ${error.message}`);
+            console.log('[WA] Skipping session loading - database tables may not exist yet');
+            return; // Exit gracefully without crashing
+        }
 
         let loadedCount = 0;
         let skippedCount = 0;

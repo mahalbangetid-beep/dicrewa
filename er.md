@@ -1,4 +1,4 @@
-[CMD]: docker logs -n 100 xscs8cwcww800cswkk4kc48s-073559076160
+[CMD]: docker logs -n 100 xscs8cwcww800cswkk4kc48s-075354554547
 'NACK_REASONS',
 'NOISE_MODE',
 'NOISE_WA_HEADER',
@@ -86,7 +86,7 @@ at ei.handleAndLogRequestError (/app/node_modules/@prisma/client/runtime/library
 at ei.request (/app/node_modules/@prisma/client/runtime/library.js:121:6300)
 at async a (/app/node_modules/@prisma/client/runtime/library.js:130:9551)
 at async WhatsAppService.loadExistingSessions (/app/src/services/whatsapp.js:932:27)
-at async Server.<anonymous> (/app/src/index.js:452:5) {
+at async Server.<anonymous> (/app/src/index.js:453:5) {
 code: 'P2021',
 meta: { modelName: 'Device', table: 'main.Device' },
 clientVersion: '6.19.1'
