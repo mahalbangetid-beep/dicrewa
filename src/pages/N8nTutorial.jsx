@@ -76,7 +76,7 @@ const codeExamples = {
         code: `// n8n HTTP Request Node Configuration
 
 Method: POST
-URL: https://kewhats.app/api/v1/messages/send
+URL: https://api.kewhats.app/api/messages/send
 
 Headers:
   Authorization: Bearer {{ $credentials.kewhats_api_key }}
@@ -95,7 +95,7 @@ Body (JSON):
         code: `// n8n HTTP Request Node Configuration
 
 Method: POST
-URL: https://kewhats.app/api/v1/messages/send-media
+URL: https://api.kewhats.app/api/messages/send-media
 
 Headers:
   Authorization: Bearer {{ $credentials.kewhats_api_key }}
@@ -392,7 +392,7 @@ export default function N8nTutorial() {
                                                             fontSize: '0.75rem'
                                                         }}>
                                                             <code style={{ color: 'var(--primary-400)' }}>
-                                                                kw_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                                                                dk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
                                                             </code>
                                                         </div>
                                                     </div>
@@ -404,7 +404,7 @@ export default function N8nTutorial() {
                                                         </p>
                                                         <ul style={{ fontSize: '0.875rem', paddingLeft: '20px', margin: 0 }}>
                                                             <li>Method: POST</li>
-                                                            <li>URL: https://kewhats.app/api/v1/messages/send</li>
+                                                            <li>URL: https://api.kewhats.app/api/messages/send</li>
                                                             <li>Authentication: Header Auth</li>
                                                             <li>Body: JSON dengan field to, message, device_id</li>
                                                         </ul>
