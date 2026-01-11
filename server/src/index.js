@@ -42,6 +42,28 @@ const validateEnvironment = () => {
 
 // Run validation
 validateEnvironment();
+
+// ==================== AUTO DATABASE MIGRATION ====================
+// Ensure database tables exist before app starts
+const initDatabase = () => {
+    try {
+        const { execSync } = require('child_process');
+        console.log('🔄 Checking database schema...');
+        execSync('npx prisma db push --accept-data-loss', {
+            stdio: 'inherit',
+            cwd: process.cwd()
+        });
+        console.log('✅ Database schema is up to date');
+    } catch (error) {
+        console.error('⚠️ Database migration warning:', error.message);
+        console.log('Continuing anyway - tables may already exist');
+    }
+};
+
+// Run in production only
+if (process.env.NODE_ENV === 'production') {
+    initDatabase();
+}
 // ================================================================
 
 const express = require('express');
