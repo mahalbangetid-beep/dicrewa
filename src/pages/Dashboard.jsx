@@ -206,14 +206,9 @@ export default function Dashboard() {
                                 <Zap size={12} style={{ opacity: 0.8 }} /> Pro Plan
                             </span>
                         )}
-                        {stats?.subscription?.plan?.toLowerCase() === 'business' && (
-                            <span className="badge badge-info" style={{ fontWeight: 'bold', padding: 'var(--spacing-xs) var(--spacing-md)', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.7rem' }}>
-                                <Activity size={12} /> Business
-                            </span>
-                        )}
-                        {stats?.subscription?.plan?.toLowerCase() === 'ultimate' && (
+                        {stats?.subscription?.plan?.toLowerCase() === 'enterprise' && (
                             <span className="badge badge-warning" style={{ fontWeight: 'bold', padding: 'var(--spacing-xs) var(--spacing-md)', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.7rem' }}>
-                                <Zap size={12} style={{ opacity: 0.8 }} /> Ultimate
+                                <Activity size={12} /> Enterprise
                             </span>
                         )}
                         {stats?.subscription?.plan?.toLowerCase() === 'unlimited' && (

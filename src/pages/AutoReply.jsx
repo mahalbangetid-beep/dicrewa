@@ -21,8 +21,11 @@ import {
 } from 'lucide-react'
 import { autoReplyService, deviceService } from '../services/api'
 import api from '../services/api'
+import toast from 'react-hot-toast'
+import { useConfirm } from '../components/ConfirmDialog'
 
 export default function AutoReply() {
+    const confirm = useConfirm()
     const [rules, setRules] = useState([])
     const [devices, setDevices] = useState([])
     const [loading, setLoading] = useState(true)
@@ -97,7 +100,7 @@ export default function AutoReply() {
             setRules(rules.map(rule => rule.id === id ? updatedRule : rule))
         } catch (error) {
             console.error('Failed to toggle rule:', error)
-            alert('Failed to toggle rule')
+            toast.error('Failed to toggle rule status')
         }
     }
 
@@ -125,17 +128,24 @@ export default function AutoReply() {
             setShowModal(false)
             resetForm()
         } catch (error) {
-            alert(error.formattedMessage || 'Operation failed')
+            toast.error(error.formattedMessage || 'Operasi gagal')
         }
     }
 
     const deleteRule = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this rule?')) return
+        const isConfirmed = await confirm({
+            title: 'Delete Rule?',
+            message: 'Are you sure you want to delete this auto-reply rule?',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        })
+        if (!isConfirmed) return
         try {
             await autoReplyService.delete(id)
             setRules(rules.filter(r => r.id !== id))
         } catch (error) {
-            alert('Failed to delete rule')
+            toast.error('Failed to delete rule')
         }
     }
 
@@ -184,9 +194,9 @@ export default function AutoReply() {
             setDevices(prev => prev.map(d =>
                 d.id === spreadsheetConfig.deviceId ? { ...d, spreadsheetUrl: spreadsheetConfig.url } : d
             ))
-            alert('Spreadsheet settings updated and synced.')
+            toast.success('Spreadsheet settings updated and synced.')
         } catch (error) {
-            alert('Failed to update spreadsheet: ' + (error.formattedMessage || error.message))
+            toast.error('Failed to update spreadsheet: ' + (error.formattedMessage || error.message))
         } finally {
             setSavingSpreadsheet(false)
         }
@@ -216,16 +226,16 @@ export default function AutoReply() {
                 } else {
                     await autoReplyService.create(ragPayload)
                 }
-                alert('Smart Knowledge fallback enabled!')
+                toast.success('Smart Knowledge fallback enabled!')
             } else if (existingRagRule) {
                 // Disable RAG - delete the rule
                 await autoReplyService.delete(existingRagRule.id)
-                alert('Smart Knowledge fallback disabled.')
+                toast.success('Smart Knowledge fallback disabled.')
             }
 
             fetchData() // Refresh data
         } catch (error) {
-            alert('Failed to save RAG config: ' + (error.formattedMessage || error.message))
+            toast.error('Failed to save RAG config: ' + (error.formattedMessage || error.message))
         } finally {
             setSavingRag(false)
         }

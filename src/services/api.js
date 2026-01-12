@@ -26,11 +26,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        // If 401 Unauthorized, log out user (unless it's login endpoint)
-        if (error.response?.status === 401 && !error.config.url.includes('/auth/login')) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
+        // If 401 Unauthorized, log out user (unless it's auth endpoints or already on login page)
+        if (error.response?.status === 401) {
+            const isAuthEndpoint = error.config.url.includes('/auth/login') ||
+                error.config.url.includes('/auth/register');
+            const isAlreadyOnLogin = window.location.pathname === '/login' ||
+                window.location.pathname === '/register';
+
+            if (!isAuthEndpoint && !isAlreadyOnLogin) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '/login';
+            }
         }
 
         // Normalize error object for frontend consumption

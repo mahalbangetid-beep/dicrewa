@@ -11,6 +11,18 @@ const airtableHandler = require('./integrations/airtable');
 const notionHandler = require('./integrations/notion');
 
 /**
+ * Safely parse JSON config with error handling
+ */
+const safeParseConfig = (configJson) => {
+    try {
+        return JSON.parse(configJson);
+    } catch (error) {
+        console.error('[Integration] Failed to parse config:', error.message);
+        throw new Error('Integration configuration is malformed. Please reconfigure.');
+    }
+};
+
+/**
  * Integration Service - Core logic for managing integrations
  */
 class IntegrationService {
@@ -211,7 +223,7 @@ class IntegrationService {
         // Merge config if provided
         let configToSave = existing.config;
         if (data.config) {
-            const existingConfig = JSON.parse(existing.config);
+            const existingConfig = safeParseConfig(existing.config);
             configToSave = JSON.stringify({ ...existingConfig, ...data.config });
         }
 
@@ -273,7 +285,7 @@ class IntegrationService {
         let details = {};
 
         try {
-            const config = JSON.parse(integration.config);
+            const config = safeParseConfig(integration.config);
             const result = await handler.testConnection(config);
 
             status = result.success ? 'success' : 'failed';
@@ -357,7 +369,7 @@ class IntegrationService {
         let details = {};
 
         try {
-            const config = JSON.parse(integration.config);
+            const config = safeParseConfig(integration.config);
             const result = await handler.sync(config, options, userId);
 
             status = result.success ? 'success' : 'failed';
@@ -421,7 +433,7 @@ class IntegrationService {
                 if (!handler || !handler.handleEvent) continue;
 
                 try {
-                    const config = JSON.parse(integration.config);
+                    const config = safeParseConfig(integration.config);
 
                     // Check if this integration is subscribed to this event
                     if (config.events && !config.events.includes(eventName)) {

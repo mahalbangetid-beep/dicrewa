@@ -131,6 +131,10 @@ const chatbotService = require('./services/chatbotService');
 const app = express();
 const httpServer = createServer(app);
 
+// Trust proxy - required for correct client IP detection behind reverse proxies (Nginx, Coolify, etc.)
+// This ensures rate limiting and logging use the real client IP, not the proxy IP
+app.set('trust proxy', 1); // Trust first proxy
+
 // Socket.IO setup
 const io = new Server(httpServer, {
     cors: {
@@ -170,7 +174,7 @@ io.use(async (socket, next) => {
 const whatsappService = new WhatsAppService(io);
 const autoReplyService = new AutoReplyService(whatsappService);
 const inboxService = new InboxService(whatsappService);
-broadcastService.init(whatsappService);
+broadcastService.init(whatsappService, io);
 
 // Schedule cleanup for ProcessedAutoReply records (every hour)
 setInterval(() => {
@@ -336,8 +340,17 @@ whatsappService.createSession = async (deviceId, callbacks = {}) => {
                     select: { userId: true }
                 });
 
+                // Map Baileys numeric status codes to human-readable event names
+                const statusMap = {
+                    1: 'sent',       // Single gray check
+                    2: 'delivered',  // Double gray check
+                    3: 'read',       // Double blue check
+                    4: 'played'      // For voice messages
+                };
+                const statusName = statusMap[data.status] || data.status;
+
                 // Webhook (multi-tenant: only trigger for device owner)
-                await webhookService.trigger(`message.${data.status}`, data, device?.userId);
+                await webhookService.trigger(`message.${statusName}`, data, device?.userId);
 
                 // Emit Socket Event (Room-based for multi-tenant isolation)
                 io.to(`device:${deviceId}`).emit('message.updated', {

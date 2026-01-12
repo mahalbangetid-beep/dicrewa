@@ -17,6 +17,8 @@ import {
     Loader
 } from 'lucide-react'
 import { webhookService } from '../services/api'
+import toast from 'react-hot-toast'
+import { useConfirm } from '../components/ConfirmDialog'
 
 // Available event types
 const eventTypes = [
@@ -27,6 +29,7 @@ const eventTypes = [
 ]
 
 export default function Webhook() {
+    const confirm = useConfirm()
     const [webhooks, setWebhooks] = useState([])
     const [loading, setLoading] = useState(false)
     const [showModal, setShowModal] = useState(false)
@@ -61,27 +64,34 @@ export default function Webhook() {
         e.preventDefault()
         try {
             if (editingId) {
-                // Not supported by API yet usually, but if it was:
-                // await webhookService.update(editingId, formData)
-                alert('Update not implemented yet')
+                toast.error('Update not yet implemented')
             } else {
                 const created = await webhookService.create(formData)
                 setWebhooks([...webhooks, created])
+                toast.success('Webhook created successfully')
             }
             setShowModal(false)
             resetForm()
         } catch (error) {
-            alert(error.formattedMessage || 'Operation failed')
+            toast.error(error.formattedMessage || 'Operation failed')
         }
     }
 
     const deleteWebhook = async (id) => {
-        if (!window.confirm('Are you sure?')) return
+        const isConfirmed = await confirm({
+            title: 'Delete Webhook?',
+            message: 'Are you sure you want to delete this webhook?',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        })
+        if (!isConfirmed) return
         try {
             await webhookService.delete(id)
             setWebhooks(webhooks.filter(w => w.id !== id))
+            toast.success('Webhook deleted successfully')
         } catch (error) {
-            alert('Failed to delete webhook')
+            toast.error('Failed to delete webhook')
         }
     }
 

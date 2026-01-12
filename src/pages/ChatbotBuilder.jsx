@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // Custom Node Components with Handles
 const StartNode = ({ data }) => (
@@ -186,6 +187,7 @@ const nodePalette = [
 ];
 
 export default function ChatbotBuilder() {
+    const confirm = useConfirm();
     // State
     const [chatbots, setChatbots] = useState([]);
     const [selectedChatbot, setSelectedChatbot] = useState(null);
@@ -428,12 +430,19 @@ export default function ChatbotBuilder() {
 
     // Delete chatbot
     const deleteChatbot = async (chatbot) => {
-        if (!confirm(`Delete "${chatbot.name}"? This cannot be undone.`)) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Chatbot?',
+            message: `Delete "${chatbot.name}"? This action cannot be undone.`,
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (!isConfirmed) return;
 
         try {
             await api.delete(`/chatbots/${chatbot.id}`);
             setChatbots(chatbots.filter(c => c.id !== chatbot.id));
-            toast.success('Chatbot deleted');
+            toast.success('Chatbot deleted successfully');
         } catch (error) {
             console.error('Error deleting chatbot:', error);
             toast.error('Failed to delete chatbot');

@@ -364,8 +364,14 @@ class KnowledgeService {
             .filter(kb => {
                 if (!deviceId) return true;
                 if (!kb.deviceIds) return true; // null = all devices
-                const devices = JSON.parse(kb.deviceIds);
-                return devices.includes(deviceId);
+                try {
+                    const devices = JSON.parse(kb.deviceIds);
+                    return Array.isArray(devices) && devices.includes(deviceId);
+                } catch (e) {
+                    // If deviceIds is malformed, treat as all devices
+                    console.warn(`[KnowledgeService] Malformed deviceIds for KB ${kb.id}:`, e.message);
+                    return true;
+                }
             })
             .map(kb => kb.id);
 

@@ -81,7 +81,7 @@ export default function Analytics() {
     const exportData = async () => {
         try {
             const response = await api.get('/analytics/export', {
-                params: { type: 'messages', period: '30d' },
+                params: { type: 'messages', period }, // Use selected period instead of hardcoded '30d'
                 responseType: 'blob'
             });
 

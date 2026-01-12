@@ -5,6 +5,40 @@ const { protect } = require('../middleware/auth');
 const { checkQuota } = require('../middleware/quota');
 const { successResponse, errorResponse, paginatedResponse, parsePagination } = require('../utils/response');
 
+/**
+ * Extract proper filename from URL
+ * Handles query strings, dynamic URLs, and edge cases
+ */
+const getFilenameFromUrl = (url) => {
+    try {
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+        const lastSegment = pathname.split('/').filter(s => s).pop() || '';
+
+        // If valid filename with extension (2-5 chars), use it
+        if (lastSegment && /\.[a-z0-9]{2,5}$/i.test(lastSegment)) {
+            return lastSegment;
+        }
+
+        // Try to get from common query params
+        const filename = urlObj.searchParams.get('filename')
+            || urlObj.searchParams.get('name')
+            || urlObj.searchParams.get('file');
+        if (filename) return filename;
+
+        // If we have any segment, use it with a generic extension
+        if (lastSegment) {
+            return `${lastSegment}.file`;
+        }
+
+        return 'document.pdf';
+    } catch {
+        // If URL parsing fails, try simple split
+        const simple = url.split('/').pop()?.split('?')[0];
+        return simple || 'document.pdf';
+    }
+};
+
 // All routes are protected
 router.use(protect);
 
@@ -159,7 +193,7 @@ router.post('/send-media', checkQuota, async (req, res, next) => {
             if (msgType === 'image') {
                 result = await whatsappService.sendImage(deviceId, to, mediaUrl, caption);
             } else if (msgType === 'document') {
-                const filename = mediaUrl.split('/').pop() || 'document.pdf';
+                const filename = getFilenameFromUrl(mediaUrl);
                 result = await whatsappService.sendDocument(deviceId, to, mediaUrl, filename, caption);
             } else if (msgType === 'video') {
                 result = await whatsappService.sendVideo(deviceId, to, mediaUrl, caption);

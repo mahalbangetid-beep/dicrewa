@@ -135,6 +135,11 @@ class GoogleSheetsHandler {
      * Sync auto-reply rules from Google Sheets
      */
     async syncAutoReplies(rows, fieldMapping = {}, userId) {
+        // SECURITY: userId is required for multi-tenant isolation
+        if (!userId) {
+            throw new Error('userId is required for auto-reply sync');
+        }
+
         const mapping = {
             trigger: fieldMapping.trigger || 'keyword',
             response: fieldMapping.response || 'response',
@@ -143,6 +148,8 @@ class GoogleSheetsHandler {
         };
 
         let synced = 0;
+        let updated = 0;
+        let created = 0;
 
         for (const row of rows) {
             const trigger = row[mapping.trigger];
@@ -153,17 +160,23 @@ class GoogleSheetsHandler {
             const triggerType = row[mapping.type] || 'contains';
             const mediaUrl = row[mapping.media] || null;
 
-            // Create or update auto-reply rule
+            // FIXED: Filter by userId to prevent cross-tenant data access
             const existing = await prisma.autoReplyRule.findFirst({
-                where: { trigger }
+                where: {
+                    trigger,
+                    userId  // Multi-tenant isolation
+                }
             });
 
             if (existing) {
+                // Only update if rule belongs to this user
                 await prisma.autoReplyRule.update({
                     where: { id: existing.id },
                     data: { response, triggerType, mediaUrl }
                 });
+                updated++;
             } else {
+                // FIXED: Include userId when creating new rules
                 await prisma.autoReplyRule.create({
                     data: {
                         name: `Sheet: ${trigger}`,
@@ -171,9 +184,11 @@ class GoogleSheetsHandler {
                         triggerType,
                         response,
                         mediaUrl,
-                        isActive: true
+                        isActive: true,
+                        userId  // Multi-tenant isolation
                     }
                 });
+                created++;
             }
 
             synced++;
@@ -182,7 +197,7 @@ class GoogleSheetsHandler {
         return {
             success: true,
             recordsCount: synced,
-            message: `Synced ${synced} auto-reply rules`
+            message: `Synced ${synced} auto-reply rules (${created} created, ${updated} updated)`
         };
     }
 
@@ -249,14 +264,18 @@ class GoogleSheetsHandler {
     normalizePhone(phone) {
         if (!phone) return null;
 
+        // Get country code from environment or default to 62 (Indonesia)
+        const defaultCountryCode = process.env.DEFAULT_COUNTRY_CODE || '62';
+
         // Remove all non-digits
         let cleaned = String(phone).replace(/\D/g, '');
 
-        // Handle Indonesian numbers
+        // Handle local numbers starting with 0
         if (cleaned.startsWith('0')) {
-            cleaned = '62' + cleaned.substring(1);
-        } else if (!cleaned.startsWith('62') && cleaned.length <= 12) {
-            cleaned = '62' + cleaned;
+            cleaned = defaultCountryCode + cleaned.substring(1);
+        } else if (!cleaned.startsWith(defaultCountryCode) && cleaned.length <= 12) {
+            // Assume local number if short and doesn't start with country code
+            cleaned = defaultCountryCode + cleaned;
         }
 
         return cleaned.length >= 10 ? cleaned : null;

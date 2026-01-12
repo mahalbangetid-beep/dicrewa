@@ -25,6 +25,7 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { API_URL } from '../utils/config';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // Role icons
 const roleIcons = {
@@ -40,6 +41,7 @@ const roleColors = {
 };
 
 export default function Team() {
+    const confirm = useConfirm();
     const [teams, setTeams] = useState([]);
     const [selectedTeam, setSelectedTeam] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -137,7 +139,14 @@ export default function Team() {
     };
 
     const handleDeleteTeam = async () => {
-        if (!confirm('Are you sure you want to delete this team? This action cannot be undone.')) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Team?',
+            message: 'Are you sure you want to delete this team? This action cannot be undone.',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (!isConfirmed) return;
 
         setActionLoading(true);
         try {
@@ -218,7 +227,14 @@ export default function Team() {
     };
 
     const handleRemoveMember = async (userId) => {
-        if (!confirm('Are you sure you want to remove this member?')) return;
+        const isConfirmed = await confirm({
+            title: 'Remove Member?',
+            message: 'Are you sure you want to remove this member from the team?',
+            confirmText: 'Remove',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (!isConfirmed) return;
 
         try {
             const res = await fetch(`${API_URL}/teams/${selectedTeam.id}/members/${userId}`, {
@@ -240,7 +256,14 @@ export default function Team() {
     };
 
     const handleLeaveTeam = async () => {
-        if (!confirm('Are you sure you want to leave this team?')) return;
+        const isConfirmed = await confirm({
+            title: 'Leave Team?',
+            message: 'Are you sure you want to leave this team?',
+            confirmText: 'Yes, Leave',
+            cancelText: 'Cancel',
+            danger: false
+        });
+        if (!isConfirmed) return;
 
         try {
             const res = await fetch(`${API_URL}/teams/${selectedTeam.id}/leave`, {

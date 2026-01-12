@@ -71,10 +71,18 @@ const getAuditLogs = async ({
     ]);
 
     return {
-        logs: logs.map(log => ({
-            ...log,
-            details: log.details ? JSON.parse(log.details) : null
-        })),
+        logs: logs.map(log => {
+            let details = null;
+            if (log.details) {
+                try {
+                    details = JSON.parse(log.details);
+                } catch (e) {
+                    console.error('[Security] Failed to parse audit log details:', e.message);
+                    details = { parseError: true, raw: log.details };
+                }
+            }
+            return { ...log, details };
+        }),
         pagination: {
             page,
             limit,

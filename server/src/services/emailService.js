@@ -55,11 +55,18 @@ class EmailService {
     async sendPasswordResetEmail(email, resetToken, userName = 'User') {
         if (!this.isAvailable()) {
             console.log('[Email] Service not available. Skipping email send.');
-            // Return the token for development/testing purposes
+            // SECURITY: Only expose token in development mode
+            const isDevelopment = process.env.NODE_ENV === 'development';
+
+            if (isDevelopment) {
+                console.log('[Email] DEV MODE: Reset token for', email, ':', resetToken);
+            }
+
             return {
                 success: false,
                 reason: 'Email service not configured',
-                devToken: resetToken // Remove in production
+                // Only include token in development for testing
+                ...(isDevelopment && { devToken: resetToken })
             };
         }
 

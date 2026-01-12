@@ -315,7 +315,7 @@ const createSubscription = async (userId, plan, billingCycle = 'monthly', status
             where: { id: userId },
             data: {
                 plan,
-                quota: planData.quota === -1 ? 999999 : planData.quota,
+                quota: planData.quota,  // -1 means unlimited, handled by quotaService
                 used: 0
             }
         });
@@ -349,7 +349,7 @@ const activateSubscription = async (subscriptionId) => {
             where: { id: subscription.userId },
             data: {
                 plan: subscription.plan,
-                quota: planData.quota === -1 ? 999999 : planData.quota,
+                quota: planData.quota,  // -1 means unlimited, handled by quotaService
                 used: 0
             }
         });
@@ -449,13 +449,31 @@ const getInvoiceByExternalId = async (externalId) => {
 };
 
 /**
- * Update invoice status
+ * Update invoice status with atomic check for race condition prevention
+ * Returns the updated invoice, or null if no update was made (already processed)
  */
 const updateInvoiceStatus = async (invoiceId, status, additionalData = {}) => {
     const data = { status, ...additionalData };
 
     if (status === 'paid') {
         data.paidAt = new Date();
+
+        // ATOMIC: Only update if not already paid (prevents race condition)
+        const result = await prisma.invoice.updateMany({
+            where: {
+                id: invoiceId,
+                status: { not: 'paid' } // Only update if not already paid
+            },
+            data
+        });
+
+        // If no rows updated, invoice was already paid
+        if (result.count === 0) {
+            console.log(`[Billing] Invoice ${invoiceId} already paid, atomic update prevented duplicate`);
+            return null;
+        }
+
+        return prisma.invoice.findUnique({ where: { id: invoiceId } });
     }
 
     return prisma.invoice.update({
@@ -513,7 +531,7 @@ const processSuccessfulPayment = async (invoiceId) => {
             where: { id: invoice.userId },
             data: {
                 plan: subscription.plan,
-                quota: planData.quota === -1 ? 999999 : planData.quota,
+                quota: planData.quota,  // -1 means unlimited, handled by quotaService
                 used: 0,
                 lastQuotaReset: now
             }

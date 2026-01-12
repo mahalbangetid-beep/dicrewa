@@ -6,13 +6,11 @@
 
 const prisma = require('../utils/prisma');
 
-// Plan quotas (same as in middleware)
+// Plan quotas - must match planLimitsService.js
 const PLAN_QUOTAS = {
     free: 1500,
     pro: 5000,
-    business: 10000,
-    enterprise: 10000,
-    ultimate: 20000,
+    enterprise: 15000,
     unlimited: Infinity
 };
 
@@ -57,8 +55,8 @@ class QuotaService {
                     currentUsed = 0;
                 }
 
-                // Unlimited plan bypass
-                if (user.plan === 'unlimited') {
+                // Unlimited plan bypass (check both plan name and quota value for consistency)
+                if (user.plan === 'unlimited' || user.quota === -1) {
                     // Still increment for tracking purposes (within transaction)
                     await tx.user.update({
                         where: { id: userId },

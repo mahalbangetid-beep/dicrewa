@@ -21,8 +21,10 @@ import {
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import { format, formatDistanceToNow } from 'date-fns';
+import { useConfirm } from '../components/ConfirmDialog';
 
 export default function Security() {
+    const confirm = useConfirm();
     const [activeTab, setActiveTab] = useState('sessions');
     const [isLoading, setIsLoading] = useState(true);
     const [sessions, setSessions] = useState([]);
@@ -99,25 +101,39 @@ export default function Security() {
     };
 
     const revokeSession = async (sessionId) => {
-        if (!confirm('Are you sure you want to end this session?')) return;
+        const isConfirmed = await confirm({
+            title: 'Revoke Session?',
+            message: 'Are you sure you want to revoke this session?',
+            confirmText: 'Yes, Revoke',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (!isConfirmed) return;
 
         try {
             await api.delete(`/security/sessions/${sessionId}`);
             setSessions(sessions.filter(s => s.id !== sessionId));
-            toast.success('Session ended successfully');
+            toast.success('Session revoked successfully');
         } catch (error) {
             console.error('Error revoking session:', error);
-            toast.error('Failed to end session');
+            toast.error('Failed to revoke session');
         }
     };
 
     const revokeAllSessions = async () => {
-        if (!confirm('This will sign you out of all other devices. Continue?')) return;
+        const isConfirmed = await confirm({
+            title: 'Sign Out All Devices?',
+            message: 'This will sign you out from all other devices. Continue?',
+            confirmText: 'Yes, Sign Out All',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (!isConfirmed) return;
 
         try {
             await api.post('/security/sessions/revoke-all');
             fetchSecurityData();
-            toast.success('All other sessions have been signed out');
+            toast.success('All other sessions signed out');
         } catch (error) {
             console.error('Error revoking all sessions:', error);
             toast.error('Failed to sign out other sessions');

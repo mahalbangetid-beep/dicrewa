@@ -6,9 +6,10 @@
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Simple in-memory cache
+// Simple in-memory cache with size limit
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 500; // Maximum entries to prevent memory leak
 
 /**
  * Get cached result or null
@@ -23,9 +24,17 @@ const getFromCache = (key) => {
 };
 
 /**
- * Store result in cache
+ * Store result in cache with size limit (LRU-like eviction)
  */
 const setCache = (key, result, ttl = CACHE_TTL) => {
+    // Evict oldest entries if cache is full
+    if (cache.size >= MAX_CACHE_SIZE) {
+        // Delete first 10% of entries (oldest due to Map insertion order)
+        const entriesToDelete = Math.ceil(MAX_CACHE_SIZE * 0.1);
+        const keys = Array.from(cache.keys()).slice(0, entriesToDelete);
+        keys.forEach(k => cache.delete(k));
+    }
+
     cache.set(key, {
         result,
         expiresAt: Date.now() + ttl
@@ -81,19 +90,44 @@ const callGemini = async (apiKey, prompt, options = {}) => {
  * Parse JSON from AI response (handles markdown code blocks)
  */
 const parseJsonResponse = (text) => {
+    // Try direct parse first
     try {
         return JSON.parse(text);
     } catch {
+        // Not valid JSON directly, try extracting from markdown
+    }
+
+    // Try extracting from markdown code blocks
+    try {
         const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (jsonMatch) {
             return JSON.parse(jsonMatch[1].trim());
         }
-        const objectMatch = text.match(/\{[\s\S]*\}/);
-        const arrayMatch = text.match(/\[[\s\S]*\]/);
-        if (objectMatch) return JSON.parse(objectMatch[0]);
-        if (arrayMatch) return JSON.parse(arrayMatch[0]);
-        throw new Error('Failed to parse JSON from response');
+    } catch {
+        // Continue to next method
     }
+
+    // Try extracting object pattern
+    try {
+        const objectMatch = text.match(/\{[\s\S]*\}/);
+        if (objectMatch) {
+            return JSON.parse(objectMatch[0]);
+        }
+    } catch {
+        // Continue to next method
+    }
+
+    // Try extracting array pattern
+    try {
+        const arrayMatch = text.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+            return JSON.parse(arrayMatch[0]);
+        }
+    } catch {
+        // All methods failed
+    }
+
+    throw new Error('Failed to parse JSON from AI response');
 };
 
 // ============================================

@@ -19,8 +19,10 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../components/ConfirmDialog';
 
 const Templates = () => {
+    const confirm = useConfirm();
     const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState(null);
@@ -121,7 +123,7 @@ const Templates = () => {
             return res.data;
         },
         onSuccess: () => {
-            toast.success('Kategori berhasil dibuat');
+            toast.success('Category created successfully');
             queryClient.invalidateQueries(['template-categories']);
             closeCategoryModal();
         }
@@ -235,14 +237,28 @@ const Templates = () => {
         }
     };
 
-    const handleDelete = (id) => {
-        if (window.confirm('Are you sure you want to delete this template?')) {
+    const handleDelete = async (id) => {
+        const isConfirmed = await confirm({
+            title: 'Delete Template?',
+            message: 'Are you sure you want to delete this template?',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (isConfirmed) {
             deleteMutation.mutate(id);
         }
     };
 
-    const handleDeleteCategory = (id) => {
-        if (window.confirm('Are you sure you want to delete this category? Templates in this category will become uncategorized.')) {
+    const handleDeleteCategory = async (id) => {
+        const isConfirmed = await confirm({
+            title: 'Delete Category?',
+            message: 'Are you sure you want to delete this category? Templates in this category will become uncategorized.',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (isConfirmed) {
             deleteCategoryMutation.mutate(id);
         }
     };

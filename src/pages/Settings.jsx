@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { settingsService } from '../services/api'
 import { API_URL } from '../utils/config'
+import { useConfirm } from '../components/ConfirmDialog'
 
 // Base sections available to all users
 const baseSections = [
@@ -52,6 +53,7 @@ export default function Settings() {
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState(null) // { type: 'success'|'error', text: '' }
+    const confirm = useConfirm()
 
     // User Data State
     const [user, setUser] = useState({
@@ -244,7 +246,14 @@ export default function Settings() {
     }
 
     const handleResetCustomBranding = async () => {
-        if (!window.confirm('Are you sure you want to reset branding to defaults?')) return
+        const isConfirmed = await confirm({
+            title: 'Reset Branding?',
+            message: 'Are you sure you want to reset branding to default?',
+            confirmText: 'Yes, Reset',
+            cancelText: 'Cancel',
+            danger: true
+        })
+        if (!isConfirmed) return
         setSaving(true)
         try {
             const res = await fetch(`${API_URL}/branding/reset`, {
@@ -328,7 +337,14 @@ export default function Settings() {
     }
 
     const handleGenerateApiKey = async () => {
-        if (!window.confirm('Generating a new API Key will invalidate the old one. Continue?')) return;
+        const isConfirmed = await confirm({
+            title: 'Generate New API Key?',
+            message: 'Generating a new API Key will invalidate your old API Key. Continue?',
+            confirmText: 'Yes, Generate',
+            cancelText: 'Cancel',
+            danger: true
+        })
+        if (!isConfirmed) return;
 
         setSaving(true)
         try {
@@ -775,7 +791,7 @@ export default function Settings() {
                                                 setKeyValidation(null)
                                                 try {
                                                     const token = localStorage.getItem('token')
-                                                    const res = await fetch(`${API_URL}/api/knowledge/validate-key`, {
+                                                    const res = await fetch(`${API_URL}/knowledge/validate-key`, {
                                                         method: 'POST',
                                                         headers: {
                                                             'Authorization': `Bearer ${token}`,

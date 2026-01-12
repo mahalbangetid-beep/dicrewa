@@ -235,6 +235,19 @@ router.post('/:id/restart', async (req, res, next) => {
 router.get('/:id/qr', async (req, res, next) => {
     try {
         const whatsappService = req.app.get('whatsapp');
+
+        // SECURITY: Verify device ownership before exposing QR code
+        const device = await prisma.device.findFirst({
+            where: {
+                id: req.params.id,
+                userId: req.user.id
+            }
+        });
+
+        if (!device) {
+            return errorResponse(res, 'Device not found', 404);
+        }
+
         const qr = whatsappService.getLatestQR(req.params.id);
 
         if (!qr) {

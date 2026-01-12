@@ -65,30 +65,23 @@ router.get('/', async (req, res, next) => {
         });
 
         // 7. Get Chart Data (Last 7 days volume)
-        // Raw SQL for efficiency or manipulation in JS?
-        // Let's do JS for now (not efficient for million rows but fine for MVP)
-        // Better: Use groupBy createdAt
+        // OPTIMIZED: Use raw SQL for database-side aggregation instead of loading all rows
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        const dailyStats = await prisma.message.groupBy({
-            by: ['createdAt', 'type'],
-            where: {
-                device: { userId },
-                createdAt: { gte: sevenDaysAgo }
-            },
-            _count: { id: true }
-        });
-
-        // Transform dailyStats into chart friendly format
-        // Using single-pass aggregation for O(n) performance instead of O(14n)
-        const last7DaysMessages = await prisma.message.findMany({
-            where: {
-                device: { userId },
-                createdAt: { gte: sevenDaysAgo }
-            },
-            select: { createdAt: true, type: true }
-        });
+        // SQLite compatible date aggregation
+        const dailyStats = await prisma.$queryRaw`
+            SELECT 
+                DATE(m.createdAt) as date,
+                m.type,
+                COUNT(*) as count
+            FROM Message m
+            JOIN Device d ON m.deviceId = d.id
+            WHERE d.userId = ${userId} 
+            AND m.createdAt >= ${sevenDaysAgo.toISOString()}
+            GROUP BY DATE(m.createdAt), m.type
+            ORDER BY date ASC
+        `;
 
         // Pre-initialize daily counts for the last 7 days
         const dailyCounts = {};
@@ -103,14 +96,14 @@ router.get('/', async (req, res, next) => {
             };
         }
 
-        // Single-pass aggregation: O(n) instead of O(14n)
-        for (const m of last7DaysMessages) {
-            const dateStr = m.createdAt.toISOString().split('T')[0];
+        // Apply aggregated results from database
+        for (const stat of dailyStats) {
+            const dateStr = stat.date;
             if (dailyCounts[dateStr]) {
-                if (m.type === 'outgoing') {
-                    dailyCounts[dateStr].sent++;
-                } else if (m.type === 'incoming') {
-                    dailyCounts[dateStr].received++;
+                if (stat.type === 'outgoing') {
+                    dailyCounts[dateStr].sent = Number(stat.count);
+                } else if (stat.type === 'incoming') {
+                    dailyCounts[dateStr].received = Number(stat.count);
                 }
             }
         }
@@ -128,9 +121,8 @@ router.get('/', async (req, res, next) => {
         const planQuotas = {
             free: 1500,
             pro: 5000,
-            business: 10000,
-            ultimate: 20000,
-            unlimited: 0 // handled as special case in frontend
+            enterprise: 15000,
+            unlimited: 0 // handled as special case (Infinity)
         };
 
         if (user && (!user.quota || user.quota === 0)) {

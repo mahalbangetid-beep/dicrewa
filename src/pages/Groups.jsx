@@ -24,8 +24,10 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { API_URL } from '../utils/config';
+import { useConfirm } from '../components/ConfirmDialog';
 
 export default function Groups() {
+    const confirm = useConfirm();
     const [groups, setGroups] = useState([]);
     const [devices, setDevices] = useState([]);
     const [selectedDevice, setSelectedDevice] = useState('');
@@ -172,7 +174,14 @@ export default function Groups() {
     };
 
     const handleDeleteGroup = async (groupId) => {
-        if (!confirm('Remove this group from the list?')) return;
+        const isConfirmed = await confirm({
+            title: 'Remove Group?',
+            message: 'Are you sure you want to remove this group from the list?',
+            confirmText: 'Remove',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (!isConfirmed) return;
 
         try {
             const res = await fetch(`${API_URL}/groups/${groupId}`, {
@@ -181,7 +190,7 @@ export default function Groups() {
             });
             const data = await res.json();
             if (data.success) {
-                toast.success('Group removed');
+                toast.success('Group deleted successfully');
                 setGroups(groups.filter(g => g.id !== groupId));
                 if (selectedGroup?.id === groupId) {
                     setSelectedGroup(null);
@@ -189,7 +198,7 @@ export default function Groups() {
             }
         } catch (error) {
             console.error('Error deleting group:', error);
-            toast.error('Failed to remove group');
+            toast.error('Failed to delete group');
         }
     };
 

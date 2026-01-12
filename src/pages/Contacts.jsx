@@ -16,8 +16,11 @@ import {
 } from 'lucide-react'
 import { contactService } from '../services/api'
 import { Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { useConfirm } from '../components/ConfirmDialog'
 
 export default function Contacts() {
+    const confirm = useConfirm()
     const [contacts, setContacts] = useState([])
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 })
     const [stats, setStats] = useState({ total: 0, active: 0, new: 0 })
@@ -62,27 +65,34 @@ export default function Contacts() {
 
             if (editingId) {
                 await contactService.update(editingId, data)
-                alert('Contact updated')
+                toast.success('Contact updated successfully')
             } else {
                 await contactService.create(data)
-                alert('Contact created')
+                toast.success('Contact added successfully')
             }
             setShowModal(false)
             setFormData({ name: '', phone: '', email: '', tags: [] })
             setEditingId(null)
             fetchContacts(pagination.page)
         } catch (error) {
-            alert(error.formattedMessage || 'Operation failed')
+            toast.error(error.formattedMessage || 'Operasi gagal')
         }
     }
 
     const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure?')) return
+        const isConfirmed = await confirm({
+            title: 'Delete Contact?',
+            message: 'Are you sure you want to delete this contact?',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        })
+        if (!isConfirmed) return
         try {
             await contactService.delete(id)
             fetchContacts(pagination.page)
         } catch (error) {
-            alert('Failed to delete')
+            toast.error('Failed to delete contact')
         }
     }
 
@@ -236,11 +246,11 @@ export default function Contacts() {
                                                             fontSize: '0.875rem',
                                                             fontWeight: 600
                                                         }}>
-                                                            {contact.name.slice(0, 2).toUpperCase()}
+                                                            {(contact.name || '?').slice(0, 2).toUpperCase()}
                                                         </div>
                                                         <div>
-                                                            <div style={{ fontWeight: 500 }}>{contact.name}</div>
-                                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{contact.email}</div>
+                                                            <div style={{ fontWeight: 500 }}>{contact.name || 'Tanpa Nama'}</div>
+                                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{contact.email || ''}</div>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -328,62 +338,66 @@ export default function Contacts() {
             {/* Add/Edit Contact Modal */}
             <div className={`modal-overlay ${showModal ? 'open' : ''}`} onClick={() => setShowModal(false)}>
                 <div className="modal" onClick={e => e.stopPropagation()}>
-                    <div className="modal-header">
-                        <h3 className="modal-title">{editingId ? 'Edit Contact' : 'Add New Contact'}</h3>
-                        <button className="btn btn-ghost btn-icon" onClick={() => setShowModal(false)}>
-                            <X size={20} />
-                        </button>
-                    </div>
-                    <div className="modal-body">
-                        <div className="form-group">
-                            <label className="form-label">Full Name</label>
-                            <input
-                                type="text"
-                                className="form-input"
-                                placeholder="Enter full name"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            />
+                    <form onSubmit={handleSubmit}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">{editingId ? 'Edit Kontak' : 'Tambah Kontak Baru'}</h3>
+                            <button type="button" className="btn btn-ghost btn-icon" onClick={() => setShowModal(false)}>
+                                <X size={20} />
+                            </button>
                         </div>
-                        <div className="form-group">
-                            <label className="form-label">Phone Number</label>
-                            <input
-                                type="tel"
-                                className="form-input"
-                                placeholder="+62 xxx xxxx xxxx"
-                                value={formData.phone}
-                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            />
+                        <div className="modal-body">
+                            <div className="form-group">
+                                <label className="form-label">Nama Lengkap</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    placeholder="Masukkan nama lengkap"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Nomor HP</label>
+                                <input
+                                    type="tel"
+                                    className="form-input"
+                                    placeholder="+62 xxx xxxx xxxx"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Email (Opsional)</label>
+                                <input
+                                    type="email"
+                                    className="form-input"
+                                    placeholder="email@contoh.com"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Tags (pisahkan dengan koma)</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    placeholder="customer, vip"
+                                    value={Array.isArray(formData.tags) ? formData.tags.join(', ') : formData.tags}
+                                    onChange={(e) => setFormData({ ...formData, tags: e.target.value.split(',').map(s => s.trim()) })}
+                                />
+                            </div>
                         </div>
-                        <div className="form-group">
-                            <label className="form-label">Email (Optional)</label>
-                            <input
-                                type="email"
-                                className="form-input"
-                                placeholder="email@example.com"
-                                value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            />
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
+                                Batal
+                            </button>
+                            <button type="submit" className="btn btn-primary">
+                                {editingId ? 'Perbarui' : 'Tambah'} Kontak
+                            </button>
                         </div>
-                        <div className="form-group">
-                            <label className="form-label">Tags (comma separated)</label>
-                            <input
-                                type="text"
-                                className="form-input"
-                                placeholder="customer, vip"
-                                value={Array.isArray(formData.tags) ? formData.tags.join(', ') : formData.tags}
-                                onChange={(e) => setFormData({ ...formData, tags: e.target.value.split(',').map(s => s.trim()) })}
-                            />
-                        </div>
-                    </div>
-                    <div className="modal-footer">
-                        <button className="btn btn-secondary" onClick={() => setShowModal(false)}>
-                            Cancel
-                        </button>
-                        <button className="btn btn-primary" onClick={handleSubmit}>
-                            {editingId ? 'Update' : 'Add'} Contact
-                        </button>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>

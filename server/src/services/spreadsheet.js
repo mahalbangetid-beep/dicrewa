@@ -93,6 +93,22 @@ class SpreadsheetService {
     }
 
     /**
+     * Normalize trigger type from spreadsheet to internal format
+     * Handles various user inputs like "Exact Match", "contains", "Start With", etc.
+     */
+    normalizeTriggerType(rawType) {
+        const type = (rawType || '').toLowerCase().trim();
+
+        // Match common variations to internal slugs
+        if (type.includes('exact') || type === 'sama persis') return 'exact';
+        if (type.includes('start') || type.includes('awalan') || type.includes('prefix')) return 'startswith';
+        if (type.includes('regex') || type.includes('regexp') || type.includes('regular')) return 'regex';
+
+        // Default to 'contains' for any other input
+        return 'contains';
+    }
+
+    /**
      * Fetch rules from a public Google Sheet CSV link
      * @param {string} sheetUrl - Link to CSV export of Google Sheet
      * @returns {Promise<Array>} List of rules
@@ -127,7 +143,7 @@ class SpreadsheetService {
             return jsonArray.map(row => ({
                 trigger: row.keyword || row.trigger || row.Keyword || '',
                 response: row.response || row.reply || row.Response || '',
-                triggerType: row.type || row.match || 'contains',
+                triggerType: this.normalizeTriggerType(row.type || row.match || row.Type || row.Match),
                 mediaUrl: row.media || row.attachment || null
             })).filter(r => r.trigger && r.response);
 

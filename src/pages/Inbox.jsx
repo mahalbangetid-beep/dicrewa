@@ -32,8 +32,11 @@ import SmartReply from '../components/ai/SmartReply';
 import SentimentBadge from '../components/ai/SentimentBadge';
 import SmartCompose from '../components/ai/SmartCompose';
 import { API_URL } from '../utils/config';
+import { useConfirm } from '../components/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 const Inbox = () => {
+    const confirm = useConfirm();
     const queryClient = useQueryClient();
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -263,7 +266,7 @@ const Inbox = () => {
             }
         },
         onError: (error) => {
-            alert('Error: ' + (error.response?.data?.error || error.message));
+            toast.error('Error: ' + (error.response?.data?.error || error.message));
         }
     });
 
@@ -282,7 +285,7 @@ const Inbox = () => {
         },
         onError: (error) => {
             const errorMessage = error.response?.data?.error || error.message || 'Failed to send message';
-            alert('Error: ' + errorMessage);
+            toast.error('Error: ' + errorMessage);
             console.error('[Inbox] Send message error:', error);
         }
     });
@@ -321,7 +324,7 @@ const Inbox = () => {
             setSelectedConversation(null);
         },
         onError: (error) => {
-            alert('Error: ' + (error.response?.data?.error || 'Failed to delete conversation'));
+            toast.error('Error: ' + (error.response?.data?.error || 'Failed to delete conversation'));
         }
     });
 
@@ -643,8 +646,15 @@ const Inbox = () => {
                                             </button>
                                             <button
                                                 className="dropdown-item danger"
-                                                onClick={() => {
-                                                    if (confirm('Delete this conversation and all its messages?')) {
+                                                onClick={async () => {
+                                                    const isConfirmed = await confirm({
+                                                        title: 'Delete Conversation?',
+                                                        message: 'Delete this conversation and all its messages?',
+                                                        confirmText: 'Delete',
+                                                        cancelText: 'Cancel',
+                                                        danger: true
+                                                    });
+                                                    if (isConfirmed) {
                                                         deleteConversationMutation.mutate(selectedConversation.id);
                                                     }
                                                     setShowChatMenu(false);
@@ -865,7 +875,7 @@ const Inbox = () => {
                                 className="btn-primary"
                                 onClick={() => {
                                     if (!newChatDeviceId || !newChatPhone) {
-                                        alert('Please select device and enter phone number');
+                                        toast.error('Please select device and enter phone number');
                                         return;
                                     }
                                     createConversationMutation.mutate({

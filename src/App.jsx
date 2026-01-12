@@ -42,6 +42,7 @@ import GoogleAnalytics from './components/GoogleAnalytics'
 import { Toaster } from 'react-hot-toast'
 import DeviceWatcher from './components/DeviceWatcher'
 import { PWAProvider } from './components/PWAComponents'
+import { ConfirmProvider } from './components/ConfirmDialog'
 
 // Protected Route Component
 const ProtectedRoute = () => {
@@ -72,60 +73,62 @@ const LayoutWithSidebar = () => {
 function App() {
   return (
     <PWAProvider>
-      <SocketProvider>
-        <DeviceWatcher />
-        <Toaster position="top-right" />
-        <Router>
-          <GoogleAnalytics />
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
+      <ConfirmProvider>
+        <SocketProvider>
+          <DeviceWatcher />
+          <Toaster position="top-right" />
+          <Router>
+            <GoogleAnalytics />
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
-            {/* Protected Routes */}
-            <Route element={<ProtectedRoute />}>
-              <Route element={<LayoutWithSidebar />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/inbox" element={<Inbox />} />
-                <Route path="/templates" element={<Templates />} />
-                <Route path="/devices" element={<Devices />} />
-                <Route path="/broadcast" element={<Broadcast />} />
-                <Route path="/chatbot" element={<ChatbotBuilder />} />
-                <Route path="/smart-knowledge" element={<SmartKnowledge />} />
-                <Route path="/auto-reply" element={<AutoReply />} />
-                <Route path="/webhook" element={<Webhook />} />
-                <Route path="/contacts" element={<Contacts />} />
-                <Route path="/logs" element={<MessageLogs />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/integrations" element={<Integrations />} />
-                <Route path="/ai" element={<AIFeatures />} />
-                <Route path="/api-docs" element={<ApiDocs />} />
-                <Route path="/n8n-tutorial" element={<N8nTutorial />} />
-                <Route path="/n8n-setup" element={<N8nSetup />} />
-                <Route path="/security" element={<Security />} />
-                <Route path="/billing" element={<Billing />} />
-                <Route path="/team" element={<Team />} />
-                <Route path="/groups" element={<Groups />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/monitoring" element={<MonitoringDashboard />} />
-                <Route path="/monitoring/users" element={<MonitoringUsers />} />
-                <Route path="/monitoring/connections" element={<MonitoringConnections />} />
-                <Route path="/monitoring/integrations" element={<MonitoringIntegrations />} />
-                <Route path="/monitoring/chatbots" element={<MonitoringChatbots />} />
-                <Route path="/monitoring/broadcasts" element={<MonitoringBroadcasts />} />
-                <Route path="/monitoring/contacts" element={<MonitoringContacts />} />
-                <Route path="/monitoring/webhooks" element={<MonitoringWebhooks />} />
+              {/* Protected Routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route element={<LayoutWithSidebar />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/inbox" element={<Inbox />} />
+                  <Route path="/templates" element={<Templates />} />
+                  <Route path="/devices" element={<Devices />} />
+                  <Route path="/broadcast" element={<Broadcast />} />
+                  <Route path="/chatbot" element={<ChatbotBuilder />} />
+                  <Route path="/smart-knowledge" element={<SmartKnowledge />} />
+                  <Route path="/auto-reply" element={<AutoReply />} />
+                  <Route path="/webhook" element={<Webhook />} />
+                  <Route path="/contacts" element={<Contacts />} />
+                  <Route path="/logs" element={<MessageLogs />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/integrations" element={<Integrations />} />
+                  <Route path="/ai" element={<AIFeatures />} />
+                  <Route path="/api-docs" element={<ApiDocs />} />
+                  <Route path="/n8n-tutorial" element={<N8nTutorial />} />
+                  <Route path="/n8n-setup" element={<N8nSetup />} />
+                  <Route path="/security" element={<Security />} />
+                  <Route path="/billing" element={<Billing />} />
+                  <Route path="/team" element={<Team />} />
+                  <Route path="/groups" element={<Groups />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/monitoring" element={<MonitoringDashboard />} />
+                  <Route path="/monitoring/users" element={<MonitoringUsers />} />
+                  <Route path="/monitoring/connections" element={<MonitoringConnections />} />
+                  <Route path="/monitoring/integrations" element={<MonitoringIntegrations />} />
+                  <Route path="/monitoring/chatbots" element={<MonitoringChatbots />} />
+                  <Route path="/monitoring/broadcasts" element={<MonitoringBroadcasts />} />
+                  <Route path="/monitoring/contacts" element={<MonitoringContacts />} />
+                  <Route path="/monitoring/webhooks" element={<MonitoringWebhooks />} />
+                </Route>
               </Route>
-            </Route>
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Router>
-      </SocketProvider>
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Router>
+        </SocketProvider>
+      </ConfirmProvider>
     </PWAProvider>
   )
 }

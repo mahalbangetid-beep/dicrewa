@@ -3,21 +3,57 @@ const quotaService = require('./quotaService');
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
+ * Extract proper filename from URL
+ * Handles query strings, dynamic URLs, and edge cases
+ */
+const getFilenameFromUrl = (url) => {
+    try {
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+        const lastSegment = pathname.split('/').filter(s => s).pop() || '';
+
+        // If valid filename with extension (2-5 chars), use it
+        if (lastSegment && /\.[a-z0-9]{2,5}$/i.test(lastSegment)) {
+            return lastSegment;
+        }
+
+        // Try to get from common query params
+        const filename = urlObj.searchParams.get('filename')
+            || urlObj.searchParams.get('name')
+            || urlObj.searchParams.get('file');
+        if (filename) return filename;
+
+        // If we have any segment, use it with a generic extension
+        if (lastSegment) {
+            return `${lastSegment}.file`;
+        }
+
+        return 'document';
+    } catch {
+        // If URL parsing fails, try simple split
+        const simple = url.split('/').pop()?.split('?')[0];
+        return simple || 'file';
+    }
+};
+
+/**
  * Broadcast Service
  * Handles processing of broadcast campaigns with rate limiting to avoid spam detection
  */
 class BroadcastService {
     constructor() {
         this.whatsapp = null;
+        this.io = null;
         this.isProcessing = false;
         this.processingCampaigns = new Set();
     }
 
     /**
-     * Initialize with WhatsApp service
+     * Initialize with WhatsApp service and Socket.IO
      */
-    init(whatsappService) {
+    init(whatsappService, io = null) {
         this.whatsapp = whatsappService;
+        this.io = io;
         console.log('[Broadcast] Service initialized');
 
         // Start background worker to pick up stalled or "running" campaigns on startup
@@ -167,6 +203,15 @@ class BroadcastService {
 
                     console.log(`[Broadcast] Sending to ${recipient.phone}...`);
 
+                    // Variable substitution for personalized broadcast messages
+                    const now = new Date();
+                    const dateStr = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                    let personalizedMessage = campaign.message || '';
+                    personalizedMessage = personalizedMessage.replace(/\{\{name\}\}/g, recipient.name || 'Kak');
+                    personalizedMessage = personalizedMessage.replace(/\{\{phone\}\}/g, recipient.phone);
+                    personalizedMessage = personalizedMessage.replace(/\{\{date\}\}/g, dateStr);
+
                     let result;
                     if (campaign.mediaUrl) {
                         const mediaUrl = campaign.mediaUrl.toLowerCase();
@@ -175,26 +220,26 @@ class BroadcastService {
                         const isAudio = /\.(mp3|ogg|m4a|wav|aac)$/i.test(mediaUrl);
 
                         if (isImage) {
-                            result = await this.whatsapp.sendImage(campaign.deviceId, recipient.phone, campaign.mediaUrl, campaign.message);
+                            result = await this.whatsapp.sendImage(campaign.deviceId, recipient.phone, campaign.mediaUrl, personalizedMessage);
                         } else if (isVideo) {
-                            result = await this.whatsapp.sendVideo(campaign.deviceId, recipient.phone, campaign.mediaUrl, campaign.message);
+                            result = await this.whatsapp.sendVideo(campaign.deviceId, recipient.phone, campaign.mediaUrl, personalizedMessage);
                         } else if (isAudio) {
                             // Send audio first, then text message separately (audio doesn't support caption)
                             result = await this.whatsapp.sendAudio(campaign.deviceId, recipient.phone, campaign.mediaUrl);
-                            if (campaign.message) {
-                                await this.whatsapp.sendMessage(campaign.deviceId, recipient.phone, campaign.message);
+                            if (personalizedMessage) {
+                                await this.whatsapp.sendMessage(campaign.deviceId, recipient.phone, personalizedMessage);
                             }
                         } else {
                             // Default to document for other file types
-                            const filename = campaign.mediaUrl.split('/').pop() || 'file';
-                            result = await this.whatsapp.sendDocument(campaign.deviceId, recipient.phone, campaign.mediaUrl, filename, campaign.message);
+                            const filename = getFilenameFromUrl(campaign.mediaUrl);
+                            result = await this.whatsapp.sendDocument(campaign.deviceId, recipient.phone, campaign.mediaUrl, filename, personalizedMessage);
                         }
                     } else {
-                        result = await this.whatsapp.sendMessage(campaign.deviceId, recipient.phone, campaign.message);
+                        result = await this.whatsapp.sendMessage(campaign.deviceId, recipient.phone, personalizedMessage);
                     }
 
                     // Save message to database logs
-                    await prisma.message.create({
+                    const savedMessage = await prisma.message.create({
                         data: {
                             deviceId: campaign.deviceId,
                             waMessageId: result.messageId,
@@ -207,6 +252,11 @@ class BroadcastService {
                         }
                     });
 
+                    // Emit real-time update for message created
+                    if (this.io) {
+                        this.io.to(`device:${campaign.deviceId}`).emit('message.created', savedMessage);
+                    }
+
                     // Update recipient status
                     await prisma.broadcastRecipient.update({
                         where: { id: recipient.id },
@@ -218,6 +268,17 @@ class BroadcastService {
                         where: { id: campaignId },
                         data: { sent: { increment: 1 } }
                     });
+
+                    // Emit real-time broadcast progress
+                    if (this.io) {
+                        this.io.to(`device:${campaign.deviceId}`).emit('broadcast.progress', {
+                            broadcastId: campaignId,
+                            recipient: recipient.phone,
+                            status: 'sent',
+                            sent: campaign.sent + 1,
+                            total: campaign.totalRecipients
+                        });
+                    }
 
                 } catch (sendError) {
                     console.error(`[Broadcast] Failed to send to ${recipient.phone}:`, sendError.message);

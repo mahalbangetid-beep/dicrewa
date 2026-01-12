@@ -23,6 +23,7 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import { API_URL } from '../utils/config';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // Format currency
 const formatPrice = (amount, lang, planName, billingCycle) => {
@@ -78,6 +79,7 @@ const getStatusBadge = (status) => {
 };
 
 export default function Billing() {
+    const confirm = useConfirm();
     const [activeTab, setActiveTab] = useState('plans');
     const [plans, setPlans] = useState([]);
     const [subscription, setSubscription] = useState(null);
@@ -296,7 +298,14 @@ export default function Billing() {
     };
 
     const handleCancelSubscription = async () => {
-        if (!confirm('Are you sure you want to cancel your subscription?')) return;
+        const isConfirmed = await confirm({
+            title: 'Cancel Subscription?',
+            message: 'Are you sure you want to cancel your subscription? Premium features will be unavailable after the period ends.',
+            confirmText: 'Yes, Cancel',
+            cancelText: 'Keep Subscription',
+            danger: true
+        });
+        if (!isConfirmed) return;
 
         try {
             const res = await fetch(`${API_URL}/billing/cancel`, {

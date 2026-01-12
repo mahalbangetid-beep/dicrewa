@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma');
 const knowledgeService = require('./knowledgeService');
 const quotaService = require('./quotaService');
+const axios = require('axios');
 
 /**
  * Chatbot Service
@@ -398,11 +399,84 @@ const processNode = async (node, context) => {
             break;
 
         case 'apiCallNode':
-            // API call node - would make HTTP request in production
-            result.response = {
-                type: 'message',
-                message: '[API Call executed]'
-            };
+            // API call node - makes actual HTTP requests
+            const apiUrl = node.data?.url;
+            const apiMethod = (node.data?.method || 'GET').toUpperCase();
+            const apiHeaders = node.data?.headers || {};
+            let apiBody = node.data?.body;
+            const saveResponseAs = node.data?.saveResponseAs || 'apiResponse';
+            const sendResponseToUser = node.data?.sendResponse || false;
+            const timeout = node.data?.timeout || 10000;
+
+            if (apiUrl) {
+                try {
+                    // Variable substitution in URL
+                    let processedUrl = apiUrl
+                        .replace(/\{\{message\}\}/g, encodeURIComponent(context.message))
+                        .replace(/\{\{senderId\}\}/g, encodeURIComponent(context.senderId));
+
+                    // Variable substitution in body if it's a string
+                    if (typeof apiBody === 'string') {
+                        apiBody = apiBody
+                            .replace(/\{\{message\}\}/g, context.message)
+                            .replace(/\{\{senderId\}\}/g, context.senderId);
+                        // Try to parse as JSON
+                        try {
+                            apiBody = JSON.parse(apiBody);
+                        } catch (e) {
+                            // Keep as string if not valid JSON
+                        }
+                    }
+
+                    console.log(`[Chatbot] API Call: ${apiMethod} ${processedUrl}`);
+
+                    const apiResponse = await axios({
+                        method: apiMethod,
+                        url: processedUrl,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...apiHeaders
+                        },
+                        data: ['POST', 'PUT', 'PATCH'].includes(apiMethod) ? apiBody : undefined,
+                        timeout: timeout
+                    });
+
+                    // Save response to context variables
+                    context.variables[saveResponseAs] = apiResponse.data;
+                    context.variables[`${saveResponseAs}_status`] = apiResponse.status;
+
+                    console.log(`[Chatbot] API Call success: ${apiResponse.status}`);
+
+                    // Optionally send API result as message to user
+                    if (sendResponseToUser) {
+                        let responseMessage = typeof apiResponse.data === 'string'
+                            ? apiResponse.data
+                            : JSON.stringify(apiResponse.data, null, 2);
+
+                        // Truncate if too long
+                        if (responseMessage.length > 1000) {
+                            responseMessage = responseMessage.substring(0, 1000) + '...';
+                        }
+
+                        result.response = {
+                            type: 'message',
+                            message: responseMessage
+                        };
+                    }
+                } catch (apiError) {
+                    console.error(`[Chatbot] API Call failed:`, apiError.message);
+                    context.variables[saveResponseAs] = null;
+                    context.variables[`${saveResponseAs}_error`] = apiError.message;
+
+                    // Send error message if configured
+                    if (node.data?.errorMessage) {
+                        result.response = {
+                            type: 'message',
+                            message: node.data.errorMessage
+                        };
+                    }
+                }
+            }
             break;
 
         case 'templateNode':
@@ -438,9 +512,12 @@ const processNode = async (node, context) => {
                     if (knowledgeBase && knowledgeBase.status === 'ready') {
                         const user = knowledgeBase.user;
                         const queryResult = await knowledgeService.queryKnowledge(
-                            user.id,
                             context.message,
-                            knowledgeBaseId
+                            {
+                                userId: user.id,
+                                knowledgeBaseIds: [knowledgeBaseId],
+                                userApiKey: user.embeddingApiKey
+                            }
                         );
 
                         if (queryResult.answer) {

@@ -204,10 +204,19 @@ class AutoReplyService {
                     }
                 }
 
-                // 3. Process Variables Substitution
+                // 3. Process Variables Substitution (standardized to {{variable}} format)
                 let responseText = matchedRule.response;
-                responseText = responseText.replace(/{name}/g, messageData.pushName || 'Kak');
-                responseText = responseText.replace(/{phone}/g, messageData.from.split('@')[0]);
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                responseText = responseText.replace(/\{\{name\}\}/g, messageData.pushName || 'Kak');
+                responseText = responseText.replace(/\{\{phone\}\}/g, messageData.from.split('@')[0]);
+                responseText = responseText.replace(/\{\{message\}\}/g, text);
+                responseText = responseText.replace(/\{\{date\}\}/g, dateStr);
+
+                // Also support legacy format {variable} for backwards compatibility
+                responseText = responseText.replace(/\{name\}/g, messageData.pushName || 'Kak');
+                responseText = responseText.replace(/\{phone\}/g, messageData.from.split('@')[0]);
 
                 // 4. Send Reply
                 try {
@@ -268,9 +277,11 @@ class AutoReplyService {
         try {
             const userId = ragRule.knowledgeBase.userId;
             const queryResult = await knowledgeService.queryKnowledge(
-                userId,
-                text, // Use original message text
-                ragRule.knowledgeBaseId
+                text,
+                {
+                    userId: userId,
+                    knowledgeBaseIds: [ragRule.knowledgeBaseId]
+                }
             );
 
             if (queryResult.answer && queryResult.confidence >= 50) {

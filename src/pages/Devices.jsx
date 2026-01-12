@@ -15,8 +15,11 @@ import {
 import { deviceService } from '../services/api'
 import { useSocket } from '../context/SocketContext'
 import QRCode from 'react-qr-code'
+import toast from 'react-hot-toast'
+import { useConfirm } from '../components/ConfirmDialog'
 
 export default function Devices() {
+    const confirm = useConfirm()
     const [devices, setDevices] = useState([])
     const [loading, setLoading] = useState(true)
     const [showAddModal, setShowAddModal] = useState(false)
@@ -156,7 +159,7 @@ export default function Devices() {
 
         } catch (error) {
             console.error('Failed to create device:', error)
-            alert('Failed to create device: ' + (error.formattedMessage || error.message))
+            toast.error('Failed to create device: ' + (error.formattedMessage || error.message))
             setModalMode('form') // Go back to form on error
         } finally {
             setIsCreating(false)
@@ -164,23 +167,32 @@ export default function Devices() {
     }
 
     const handleDeleteDevice = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this device?')) return
+        const isConfirmed = await confirm({
+            title: 'Delete Device?',
+            message: 'Are you sure you want to delete this device? WhatsApp session will be disconnected.',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        })
+        if (!isConfirmed) return
 
         try {
             await deviceService.delete(id)
             setDevices(prev => prev.filter(d => d.id !== id))
+            toast.success('Device deleted successfully')
         } catch (error) {
             console.error('Failed to delete:', error)
-            alert('Failed to delete device')
+            toast.error('Failed to delete device')
         }
     }
 
     const handleRestartDevice = async (id) => {
         try {
             await deviceService.restart(id)
-            alert('Device restart initiated')
+            toast.success('Device restart initiated')
         } catch (error) {
             console.error('Failed to restart:', error)
+            toast.error('Failed to restart device')
         }
     }
 

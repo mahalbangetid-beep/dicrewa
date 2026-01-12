@@ -18,6 +18,7 @@ import {
     ArrowRight
 } from 'lucide-react';
 import { monitoringService } from '../services/monitoringService';
+import toast from 'react-hot-toast';
 
 const MonitoringDashboard = () => {
     const navigate = useNavigate();
@@ -33,7 +34,7 @@ const MonitoringDashboard = () => {
         } catch (error) {
             console.error('Failed to fetch monitoring data:', error);
             if (error.response?.status === 403) {
-                alert('Access denied. You need monitoring role.');
+                toast.error('Access denied. You need monitoring role.');
                 navigate('/dashboard');
             }
         } finally {

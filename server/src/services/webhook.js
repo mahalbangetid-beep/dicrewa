@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma');
 const axios = require('axios');
 const crypto = require('crypto');
+const encryption = require('../utils/encryption');
 
 /**
  * Webhook Service
@@ -70,9 +71,12 @@ class WebhookService {
         };
         const payloadString = JSON.stringify(payloadData);
 
-        // Calculate Signature
+        // Decrypt secret for signing (handles both encrypted and legacy plaintext)
+        const decryptedSecret = encryption.safeDecrypt(webhook.secret) || webhook.secret;
+
+        // Calculate Signature using decrypted secret
         const signature = crypto
-            .createHmac('sha256', webhook.secret)
+            .createHmac('sha256', decryptedSecret)
             .update(payloadString)
             .digest('hex');
 

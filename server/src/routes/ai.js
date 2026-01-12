@@ -6,9 +6,17 @@
 const express = require('express');
 const router = express.Router();
 const { protect: auth } = require('../middleware/auth');
+const { createRateLimiter } = require('../middleware/rateLimiter');
 const aiService = require('../services/aiService');
 const prisma = require('../utils/prisma');
 const encryption = require('../utils/encryption');
+
+// AI-specific rate limiter: 20 requests per minute to prevent API cost abuse
+const aiLimiter = createRateLimiter({
+    windowMs: 60 * 1000, // 1 minute
+    max: 20,
+    message: 'Too many AI requests. Please wait a moment before trying again.'
+});
 
 /**
  * Helper: Get user's API key from database (decrypted)
@@ -129,7 +137,7 @@ router.post('/test-key', auth, async (req, res) => {
  * POST /api/ai/suggest-replies - Get smart reply suggestions
  * Supports optional knowledge base augmentation
  */
-router.post('/suggest-replies', auth, async (req, res) => {
+router.post('/suggest-replies', auth, aiLimiter, async (req, res) => {
     try {
         const apiKey = await getUserApiKey(req.user.id);
         if (!apiKey) {
@@ -219,7 +227,7 @@ router.post('/suggest-replies', auth, async (req, res) => {
 /**
  * POST /api/ai/analyze-sentiment - Analyze message sentiment
  */
-router.post('/analyze-sentiment', auth, async (req, res) => {
+router.post('/analyze-sentiment', auth, aiLimiter, async (req, res) => {
     try {
         const apiKey = await getUserApiKey(req.user.id);
         if (!apiKey) {
@@ -243,7 +251,7 @@ router.post('/analyze-sentiment', auth, async (req, res) => {
 /**
  * POST /api/ai/categorize - Categorize conversation
  */
-router.post('/categorize', auth, async (req, res) => {
+router.post('/categorize', auth, aiLimiter, async (req, res) => {
     try {
         const apiKey = await getUserApiKey(req.user.id);
         if (!apiKey) {
@@ -267,7 +275,7 @@ router.post('/categorize', auth, async (req, res) => {
 /**
  * POST /api/ai/generate - Generate content (replies, templates, broadcast)
  */
-router.post('/generate', auth, async (req, res) => {
+router.post('/generate', auth, aiLimiter, async (req, res) => {
     try {
         const apiKey = await getUserApiKey(req.user.id);
         if (!apiKey) {
@@ -298,7 +306,7 @@ router.post('/generate', auth, async (req, res) => {
 /**
  * POST /api/ai/insights - Generate AI insights from analytics data
  */
-router.post('/insights', auth, async (req, res) => {
+router.post('/insights', auth, aiLimiter, async (req, res) => {
     try {
         const apiKey = await getUserApiKey(req.user.id);
         if (!apiKey) {
@@ -322,7 +330,7 @@ router.post('/insights', auth, async (req, res) => {
 /**
  * POST /api/ai/suggest-actions - Get suggested quick actions
  */
-router.post('/suggest-actions', auth, async (req, res) => {
+router.post('/suggest-actions', auth, aiLimiter, async (req, res) => {
     try {
         const apiKey = await getUserApiKey(req.user.id);
         if (!apiKey) {

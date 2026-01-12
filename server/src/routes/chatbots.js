@@ -4,6 +4,18 @@ const chatbotService = require('../services/chatbotService');
 
 const router = express.Router();
 
+/**
+ * Safely parse JSON with fallback to empty array
+ */
+const safeParseJSON = (jsonString, fallback = []) => {
+    try {
+        return JSON.parse(jsonString || JSON.stringify(fallback));
+    } catch (error) {
+        console.error('[Chatbots] JSON parse error:', error.message);
+        return fallback;
+    }
+};
+
 // Apply auth middleware to all routes
 router.use(protect);
 
@@ -18,8 +30,8 @@ router.get('/', async (req, res) => {
         // Parse JSON fields for response
         const formattedChatbots = chatbots.map(chatbot => ({
             ...chatbot,
-            nodes: JSON.parse(chatbot.nodes || '[]'),
-            edges: JSON.parse(chatbot.edges || '[]')
+            nodes: safeParseJSON(chatbot.nodes),
+            edges: safeParseJSON(chatbot.edges)
         }));
 
         res.json({
@@ -54,8 +66,8 @@ router.get('/:id', async (req, res) => {
             success: true,
             data: {
                 ...chatbot,
-                nodes: JSON.parse(chatbot.nodes || '[]'),
-                edges: JSON.parse(chatbot.edges || '[]')
+                nodes: safeParseJSON(chatbot.nodes),
+                edges: safeParseJSON(chatbot.edges)
             }
         });
     } catch (error) {
@@ -106,8 +118,8 @@ router.post('/', async (req, res) => {
             success: true,
             data: {
                 ...chatbot,
-                nodes: JSON.parse(chatbot.nodes || '[]'),
-                edges: JSON.parse(chatbot.edges || '[]')
+                nodes: safeParseJSON(chatbot.nodes),
+                edges: safeParseJSON(chatbot.edges)
             },
             message: 'Chatbot created successfully'
         });
@@ -136,8 +148,8 @@ router.put('/:id', async (req, res) => {
             success: true,
             data: {
                 ...chatbot,
-                nodes: JSON.parse(chatbot.nodes || '[]'),
-                edges: JSON.parse(chatbot.edges || '[]')
+                nodes: safeParseJSON(chatbot.nodes),
+                edges: safeParseJSON(chatbot.edges)
             },
             message: 'Chatbot updated successfully'
         });
@@ -212,8 +224,8 @@ router.post('/:id/activate', async (req, res) => {
             success: true,
             data: {
                 ...chatbot,
-                nodes: JSON.parse(chatbot.nodes || '[]'),
-                edges: JSON.parse(chatbot.edges || '[]')
+                nodes: safeParseJSON(chatbot.nodes),
+                edges: safeParseJSON(chatbot.edges)
             },
             message: `Chatbot ${isActive ? 'activated' : 'deactivated'} successfully`
         });
@@ -249,8 +261,8 @@ router.post('/:id/validate', async (req, res) => {
             });
         }
 
-        const nodes = JSON.parse(chatbot.nodes || '[]');
-        const edges = JSON.parse(chatbot.edges || '[]');
+        const nodes = safeParseJSON(chatbot.nodes);
+        const edges = safeParseJSON(chatbot.edges);
 
         const validation = chatbotService.validateFlow(nodes, edges);
 
@@ -299,16 +311,16 @@ router.post('/:id/duplicate', async (req, res) => {
             deviceId: original.deviceId,
             triggerType: original.triggerType,
             triggerKeywords: original.triggerKeywords,
-            nodes: JSON.parse(original.nodes || '[]'),
-            edges: JSON.parse(original.edges || '[]')
+            nodes: safeParseJSON(original.nodes),
+            edges: safeParseJSON(original.edges)
         }, req.user.id);
 
         res.status(201).json({
             success: true,
             data: {
                 ...duplicate,
-                nodes: JSON.parse(duplicate.nodes || '[]'),
-                edges: JSON.parse(duplicate.edges || '[]')
+                nodes: safeParseJSON(duplicate.nodes),
+                edges: safeParseJSON(duplicate.edges)
             },
             message: 'Chatbot duplicated successfully'
         });

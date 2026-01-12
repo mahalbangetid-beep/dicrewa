@@ -181,11 +181,17 @@ const handleWebhook = async (data) => {
                 return { success: true, message: 'Already processed' };
             }
 
-            // Payment successful
-            await billingService.updateInvoiceStatus(invoice.id, 'paid', {
+            // Payment successful - atomic update returns null if already processed
+            const updateResult = await billingService.updateInvoiceStatus(invoice.id, 'paid', {
                 paymentMethod: payment_type,
                 paidAt: new Date()
             });
+
+            if (!updateResult) {
+                console.log(`[Midtrans] Race condition prevented for invoice ${invoice.id}`);
+                return { success: true, message: 'Already processed (atomic)' };
+            }
+
             await billingService.processSuccessfulPayment(invoice.id);
 
             // Activate the pending subscription now that payment is confirmed

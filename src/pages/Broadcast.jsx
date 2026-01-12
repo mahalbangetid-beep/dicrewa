@@ -26,6 +26,7 @@ import { broadcastService, deviceService, contactService } from '../services/api
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns'
 import { id } from 'date-fns/locale'
 import { API_URL } from '../utils/config'
+import toast from 'react-hot-toast'
 
 const getStatusBadge = (status) => {
     switch (status) {
@@ -120,7 +121,22 @@ export default function Broadcast() {
     }
 
     const fetchTags = async () => {
-        setTags(['customer', 'vip', 'lead', 'new', 'newsletter'])
+        try {
+            const res = await fetch(`${API_URL}/contacts/tags`, {
+                headers: getAuthHeader()
+            })
+            const data = await res.json()
+            if (data.success && data.data?.length > 0) {
+                setTags(data.data)
+            } else {
+                // Fallback to defaults if no tags found
+                setTags(['customer', 'vip', 'lead', 'new', 'newsletter'])
+            }
+        } catch (error) {
+            console.error('Failed to fetch tags:', error)
+            // Fallback to defaults on error
+            setTags(['customer', 'vip', 'lead', 'new', 'newsletter'])
+        }
     }
 
     const fetchTimezones = async () => {
@@ -160,7 +176,7 @@ export default function Broadcast() {
 
     const handleSend = async (status = 'processing') => {
         if (!formData.name || !formData.deviceId || !formData.message) {
-            alert('Please fill in all required fields')
+            toast.error('Please fill in all required fields')
             return
         }
 
@@ -197,7 +213,7 @@ export default function Broadcast() {
                 console.log(`[Broadcast] Found ${recipientsList.length} contacts with tag "${formData.tag}"`)
             } catch (e) {
                 console.error(e)
-                alert('Failed to fetch contacts by tag')
+                toast.error('Failed to fetch contacts by tag')
                 return
             }
         } else {
@@ -205,7 +221,7 @@ export default function Broadcast() {
         }
 
         if (recipientsList.length === 0) {
-            alert('No recipients found')
+            toast.error('No recipients found')
             return
         }
 
@@ -223,7 +239,7 @@ export default function Broadcast() {
 
             // Handle scheduling
             if (formData.scheduleType === 'scheduled' && broadcastId) {
-                await fetch(`${API_URL}/scheduler/schedule/${broadcastId}`, {
+                const scheduleRes = await fetch(`${API_URL}/scheduler/schedule/${broadcastId}`, {
                     method: 'POST',
                     headers: getAuthHeader(),
                     body: JSON.stringify({
@@ -231,9 +247,13 @@ export default function Broadcast() {
                         timezone: formData.timezone
                     })
                 })
-                alert('Broadcast scheduled successfully!')
+                const scheduleData = await scheduleRes.json()
+                if (!scheduleRes.ok || !scheduleData.success) {
+                    throw new Error(scheduleData.error || 'Failed to schedule broadcast')
+                }
+                toast.success('Broadcast scheduled successfully!')
             } else if (formData.scheduleType === 'recurring' && broadcastId) {
-                await fetch(`${API_URL}/scheduler/recurring/${broadcastId}`, {
+                const recurringRes = await fetch(`${API_URL}/scheduler/recurring/${broadcastId}`, {
                     method: 'POST',
                     headers: getAuthHeader(),
                     body: JSON.stringify({
@@ -244,9 +264,13 @@ export default function Broadcast() {
                         maxRuns: formData.maxRuns ? parseInt(formData.maxRuns) : null
                     })
                 })
-                alert('Recurring broadcast set up successfully!')
+                const recurringData = await recurringRes.json()
+                if (!recurringRes.ok || !recurringData.success) {
+                    throw new Error(recurringData.error || 'Failed to set up recurring broadcast')
+                }
+                toast.success('Recurring broadcast created successfully!')
             } else {
-                alert('Broadcast created and started!')
+                toast.success('Broadcast created and started!')
             }
 
             setFormData({
@@ -257,7 +281,7 @@ export default function Broadcast() {
             setActiveTab('campaigns')
         } catch (error) {
             console.error(error)
-            alert('Failed to create campaign')
+            toast.error('Failed to create campaign')
         }
     }
 

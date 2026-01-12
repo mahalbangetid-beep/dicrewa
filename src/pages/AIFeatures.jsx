@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { Sparkles, Wand2, Brain, MessageSquare, BarChart3, Zap, CheckCircle, XCircle, RefreshCw, Eye, EyeOff, Key, Trash2, Save } from 'lucide-react';
 import SmartCompose from '../components/ai/SmartCompose';
 import { API_URL } from '../utils/config';
+import { useConfirm } from '../components/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 export default function AIFeatures() {
+    const confirm = useConfirm();
     const [aiStatus, setAiStatus] = useState(null);
     const [loading, setLoading] = useState(true);
     const [testMessage, setTestMessage] = useState('');
@@ -74,7 +77,14 @@ export default function AIFeatures() {
     };
 
     const removeApiKey = async () => {
-        if (!confirm('Delete API Key? AI features will not be available.')) return;
+        const isConfirmed = await confirm({
+            title: 'Delete API Key?',
+            message: 'Delete API Key? AI features will not be available.',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (!isConfirmed) return;
 
         try {
             const res = await fetch(`${API_URL}/ai/remove-key`, {
@@ -83,7 +93,7 @@ export default function AIFeatures() {
             });
 
             if (res.ok) {
-                setKeyMessage({ type: 'success', text: 'API Key successfully deleted' });
+                setKeyMessage({ type: 'success', text: 'API Key deleted successfully' });
                 checkAIStatus();
             }
         } catch (error) {
@@ -422,7 +432,7 @@ export default function AIFeatures() {
                 onClose={() => setShowCompose(false)}
                 onInsert={(text) => {
                     navigator.clipboard.writeText(text);
-                    alert('Copied to clipboard!');
+                    toast.success('Copied to clipboard!');
                 }}
             />
         </div>

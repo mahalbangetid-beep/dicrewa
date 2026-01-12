@@ -17,6 +17,7 @@ import {
 import { messageService } from '../services/api'
 import { format } from 'date-fns'
 import { useSocket } from '../context/SocketContext'
+import toast from 'react-hot-toast'
 
 const getStatusBadge = (status) => {
     switch (status) {
@@ -188,7 +189,7 @@ export default function MessageLogs() {
 
     const downloadLogs = () => {
         // Implementation for downloading CSV would go here
-        alert('Export feature coming soon!')
+        toast('Fitur export akan segera hadir!', { icon: '🚀' })
     }
 
     return (

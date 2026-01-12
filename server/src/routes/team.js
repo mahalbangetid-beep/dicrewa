@@ -329,11 +329,21 @@ router.get('/:id/my-role', auth, async (req, res) => {
             return res.status(404).json({ error: 'Not a team member' });
         }
 
+        // Safely parse permissions
+        let permissions = [];
+        if (member.permissions) {
+            try {
+                permissions = JSON.parse(member.permissions);
+            } catch (e) {
+                console.error('[Team] Failed to parse permissions:', e.message);
+            }
+        }
+
         res.json({
             success: true,
             data: {
                 role: member.role,
-                permissions: member.permissions ? JSON.parse(member.permissions) : []
+                permissions
             }
         });
     } catch (error) {

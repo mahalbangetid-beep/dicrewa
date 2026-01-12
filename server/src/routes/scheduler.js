@@ -104,6 +104,11 @@ router.post('/schedule/:id', auth, async (req, res) => {
             return res.status(400).json({ error: 'Scheduled time must be in the future' });
         }
 
+        // Validate timezone
+        if (!scheduler.TIMEZONES.some(tz => tz.value === timezone)) {
+            return res.status(400).json({ error: `Invalid timezone: ${timezone}` });
+        }
+
         const success = await scheduler.scheduleBroadcast(id, scheduledAt, timezone);
 
         if (success) {
@@ -149,6 +154,11 @@ router.post('/recurring/:id', auth, async (req, res) => {
         const validTypes = ['daily', 'weekly', 'monthly'];
         if (!validTypes.includes(recurringType)) {
             return res.status(400).json({ error: 'Invalid recurringType' });
+        }
+
+        // Validate timezone
+        if (!scheduler.TIMEZONES.some(tz => tz.value === timezone)) {
+            return res.status(400).json({ error: `Invalid timezone: ${timezone}` });
         }
 
         const success = await scheduler.setRecurring(id, {

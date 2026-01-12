@@ -4,6 +4,34 @@ const prisma = require('../utils/prisma');
 const { protect } = require('../middleware/auth');
 const { successResponse, errorResponse, paginatedResponse, parsePagination } = require('../utils/response');
 
+/**
+ * Validate phone number format
+ * Accepts: +country code, international format, or local format (min 8 digits)
+ * Returns: cleaned phone number or null if invalid
+ */
+const validatePhoneNumber = (phone) => {
+    if (!phone || typeof phone !== 'string') return null;
+
+    // Remove all non-digit characters except leading +
+    const cleaned = phone.trim().replace(/[^\d+]/g, '');
+
+    // Check if it starts with + (international format)
+    if (cleaned.startsWith('+')) {
+        // Must have at least 10 digits after +
+        if (cleaned.length >= 11 && cleaned.length <= 16) {
+            return cleaned;
+        }
+        return null;
+    }
+
+    // For numbers without +, must be 8-15 digits
+    if (/^\d{8,15}$/.test(cleaned)) {
+        return cleaned;
+    }
+
+    return null;
+};
+
 // Apply auth middleware
 router.use(protect);
 
@@ -84,6 +112,29 @@ router.post('/', async (req, res, next) => {
         });
         if (!device) return errorResponse(res, 'Device not found', 404);
 
+        // Validate and clean phone numbers
+        const validRecipients = [];
+        const invalidRecipients = [];
+
+        for (const r of recipients) {
+            const rawPhone = typeof r === 'string' ? r : r.phone;
+            const validatedPhone = validatePhoneNumber(rawPhone);
+
+            if (validatedPhone) {
+                validRecipients.push({
+                    phone: validatedPhone,
+                    name: typeof r === 'object' ? r.name || null : null
+                });
+            } else {
+                invalidRecipients.push(rawPhone || 'empty');
+            }
+        }
+
+        // If all recipients are invalid, return error
+        if (validRecipients.length === 0) {
+            return errorResponse(res, `All ${recipients.length} phone numbers are invalid. Please check the format.`, 400);
+        }
+
         // Create Broadcast and Recipients in transaction
         const campaign = await prisma.$transaction(async (tx) => {
             const broadcast = await tx.broadcast.create({
@@ -95,17 +146,15 @@ router.post('/', async (req, res, next) => {
                     mediaUrl,
                     scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
                     status: scheduledAt ? 'scheduled' : 'running', // Simplification: running immediately if no schedule
-                    totalRecipients: recipients.length
+                    totalRecipients: validRecipients.length
                 }
             });
 
-            // Create recipients entries
-            // For large arrays checking `createMany` support or batching
-            // SQLite supports createMany in Prisma recently? Yes.
-            const recipientData = recipients.map(r => ({
+            // Create recipients entries with validated phones
+            const recipientData = validRecipients.map(r => ({
                 broadcastId: broadcast.id,
-                phone: r.phone || r, // Handle if object or string
-                name: r.name || null,
+                phone: r.phone,
+                name: r.name,
                 status: 'pending'
             }));
 
@@ -116,13 +165,34 @@ router.post('/', async (req, res, next) => {
             return broadcast;
         });
 
+        // Log warning if some recipients were invalid
+        if (invalidRecipients.length > 0) {
+            console.log(`[Broadcast] Skipped ${invalidRecipients.length} invalid phone numbers for campaign ${campaign.id}`);
+        }
+
         // Trigger Queue Processing
         if (campaign.status === 'running') {
             const broadcastService = req.app.get('broadcast');
             broadcastService.trigger(campaign.id);
         }
 
-        successResponse(res, campaign, 'Broadcast campaign created', 201);
+        // Build response message
+        let responseMessage = 'Broadcast campaign created';
+        if (invalidRecipients.length > 0) {
+            responseMessage += `. ${invalidRecipients.length} invalid phone number(s) were skipped.`;
+        }
+
+        // Return campaign with validation stats
+        const responseData = {
+            ...campaign,
+            validationStats: {
+                submitted: recipients.length,
+                valid: validRecipients.length,
+                skipped: invalidRecipients.length
+            }
+        };
+
+        successResponse(res, responseData, responseMessage, 201);
     } catch (error) {
         next(error);
     }

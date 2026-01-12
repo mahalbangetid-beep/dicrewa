@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const prisma = require('../utils/prisma');
 const { protect } = require('../middleware/auth');
 const axios = require('axios'); // Needed for test
+const encryption = require('../utils/encryption');
 const { successResponse, errorResponse, paginatedResponse, parsePagination } = require('../utils/response');
 
 // Apply auth middleware
@@ -109,18 +110,27 @@ router.post('/', async (req, res, next) => {
         // Generate cryptographically secure secret if not provided
         const webhookSecret = secret || `whsec_${crypto.randomBytes(24).toString('hex')}`;
 
+        // Encrypt secret before storing (security best practice)
+        const encryptedSecret = encryption.encrypt(webhookSecret);
+
         const newWebhook = await prisma.webhook.create({
             data: {
                 userId: req.user.id, // Multi-tenant: assign to current user
                 name,
                 url,
                 events: JSON.stringify(eventList),
-                secret: webhookSecret,
+                secret: encryptedSecret,
                 status: 'active'
             }
         });
 
-        successResponse(res, newWebhook, 'Webhook created', 201);
+        // Return response with masked secret (don't expose full secret after creation)
+        const responseWebhook = {
+            ...newWebhook,
+            secret: encryption.getMaskedValue(encryptedSecret, 'whsec_...', 8)
+        };
+
+        successResponse(res, responseWebhook, 'Webhook created', 201);
     } catch (error) {
         next(error);
     }
@@ -159,6 +169,9 @@ router.put('/:id', async (req, res, next) => {
             return errorResponse(res, 'Secret must be at least 16 characters for security', 400);
         }
 
+        // Encrypt secret if provided
+        const encryptedSecret = secret ? encryption.encrypt(secret) : undefined;
+
         const updated = await prisma.webhook.update({
             where: { id: req.params.id },
             data: {
@@ -166,11 +179,17 @@ router.put('/:id', async (req, res, next) => {
                 url,
                 events: eventsString,
                 status,
-                secret
+                ...(encryptedSecret && { secret: encryptedSecret })
             }
         });
 
-        successResponse(res, updated, 'Webhook updated');
+        // Mask secret in response
+        const responseWebhook = {
+            ...updated,
+            secret: encryption.getMaskedValue(updated.secret, 'whsec_...', 8)
+        };
+
+        successResponse(res, responseWebhook, 'Webhook updated');
     } catch (error) {
         next(error);
     }

@@ -12,9 +12,13 @@ export const SocketProvider = ({ children }) => {
     const [socket, setSocket] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
     const [authToken, setAuthToken] = useState(localStorage.getItem('token'));
+    const [wasDisconnected, setWasDisconnected] = useState(false);
 
     // Track joined rooms for re-join on reconnect
     const joinedRoomsRef = useRef(new Set());
+
+    // Callbacks for reconnection refetch
+    const reconnectCallbacksRef = useRef(new Set());
 
     // Listen for token changes (login/logout)
     useEffect(() => {
@@ -62,6 +66,14 @@ export const SocketProvider = ({ children }) => {
         }
     }, [socket]);
 
+    // Register callback for reconnection refetch
+    const onReconnect = useCallback((callback) => {
+        reconnectCallbacksRef.current.add(callback);
+        return () => {
+            reconnectCallbacksRef.current.delete(callback);
+        };
+    }, []);
+
     // Re-join all rooms (called on reconnect)
     const rejoinAllRooms = useCallback((socketInstance) => {
         if (!socketInstance || !socketInstance.connected) return;
@@ -100,11 +112,25 @@ export const SocketProvider = ({ children }) => {
 
             // Re-join all previously joined rooms on reconnect
             rejoinAllRooms(newSocket);
+
+            // If we were previously disconnected, trigger refetch callbacks
+            if (wasDisconnected) {
+                console.log('[Frontend] Triggering reconnect refetch callbacks');
+                reconnectCallbacksRef.current.forEach(callback => {
+                    try {
+                        callback();
+                    } catch (e) {
+                        console.error('[Frontend] Reconnect callback error:', e);
+                    }
+                });
+                setWasDisconnected(false);
+            }
         });
 
         newSocket.on('disconnect', (reason) => {
             console.log('[Frontend] Socket disconnected:', reason);
             setIsConnected(false);
+            setWasDisconnected(true);
         });
 
         newSocket.on('connect_error', (err) => {
@@ -127,7 +153,7 @@ export const SocketProvider = ({ children }) => {
         return () => {
             newSocket.close();
         };
-    }, [rejoinAllRooms, authToken]); // Include authToken to reconnect after login
+    }, [rejoinAllRooms, authToken, wasDisconnected]); // Include authToken to reconnect after login
 
     return (
         <SocketContext.Provider value={{
@@ -135,6 +161,7 @@ export const SocketProvider = ({ children }) => {
             isConnected,
             joinRoom,
             leaveRoom,
+            onReconnect,
             joinedRooms: joinedRoomsRef.current
         }}>
             {children}

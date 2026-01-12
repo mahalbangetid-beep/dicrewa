@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_URL } from '../utils/config';
+import toast from 'react-hot-toast';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // Integration icons (emoji fallbacks)
 const integrationIcons = {
@@ -22,6 +24,7 @@ const statusColors = {
 };
 
 export default function Integrations() {
+    const confirm = useConfirm();
     const [availableIntegrations, setAvailableIntegrations] = useState([]);
     const [userIntegrations, setUserIntegrations] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -177,17 +180,25 @@ export default function Integrations() {
             if (res.ok) {
                 closeModal();
                 fetchData();
+                toast.success('Integration saved successfully');
             } else {
                 const error = await res.json();
-                alert('Error: ' + error.error);
+                toast.error('Error: ' + error.error);
             }
         } catch (error) {
-            alert('Error saving integration: ' + error.message);
+            toast.error('Error saving integration: ' + error.message);
         }
     };
 
     const deleteIntegration = async (id) => {
-        if (!confirm('Are you sure you want to delete this integration?')) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Integration?',
+            message: 'Are you sure you want to delete this integration?',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        });
+        if (!isConfirmed) return;
 
         try {
             const res = await fetch(`${API_URL}/integrations/${id}`, {
@@ -196,9 +207,11 @@ export default function Integrations() {
             });
             if (res.ok) {
                 fetchData();
+                toast.success('Integration deleted successfully');
             }
         } catch (error) {
             console.error('Error deleting integration:', error);
+            toast.error('Failed to delete integration');
         }
     };
 
@@ -224,13 +237,13 @@ export default function Integrations() {
             });
             const result = await res.json();
             if (result.success) {
-                alert(`Sync complete! ${result.recordsCount} records processed.`);
+                toast.success(`Sync complete! ${result.recordsCount} records processed.`);
             } else {
-                alert('Sync failed: ' + result.message);
+                toast.error('Sync failed: ' + result.message);
             }
             fetchData();
         } catch (error) {
-            alert('Sync error: ' + error.message);
+            toast.error('Sync error: ' + error.message);
         } finally {
             setSyncing(prev => ({ ...prev, [id]: false }));
         }

@@ -4,6 +4,9 @@ const { protect: auth } = require('../middleware/auth');
 const { checkQuota } = require('../middleware/quota');
 const InboxService = require('../services/inboxService');
 
+// Configurable country code for local number conversion (default: Indonesia 62)
+const DEFAULT_COUNTRY_CODE = process.env.DEFAULT_COUNTRY_CODE || '62';
+
 // Initialize service - will be set from index.js
 let inboxService = null;
 
@@ -99,9 +102,9 @@ router.post('/conversations', auth, async (req, res) => {
         // Remove any non-digit characters
         let cleaned = phone.toString().trim().replace(/\D/g, '');
 
-        // Handle leading 0 -> replace with 62 (Indonesia)
+        // Handle leading 0 -> replace with configurable country code
         if (cleaned.startsWith('0')) {
-            cleaned = '62' + cleaned.substring(1);
+            cleaned = DEFAULT_COUNTRY_CODE + cleaned.substring(1);
         }
 
         // Add @s.whatsapp.net suffix
@@ -159,7 +162,7 @@ router.patch('/conversations/:id', auth, async (req, res) => {
         if (phone) {
             let cleaned = phone.toString().trim().replace(/\D/g, '');
             if (cleaned.startsWith('0')) {
-                cleaned = '62' + cleaned.substring(1);
+                cleaned = DEFAULT_COUNTRY_CODE + cleaned.substring(1);
             }
             updateData.remoteJid = cleaned + '@s.whatsapp.net';
             console.log(`[Inbox] Updating conversation ${req.params.id}: new JID=${updateData.remoteJid}`);

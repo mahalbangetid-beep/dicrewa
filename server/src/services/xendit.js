@@ -113,8 +113,14 @@ const verifyWebhookSignature = async (headers, rawBody) => {
     const config = await getConfig();
 
     if (!config.xenditCallbackToken) {
-        console.warn('[Xendit] Callback token not configured, skipping verification');
-        return true;
+        // SECURITY: In production, reject webhooks without configured token
+        const isDevelopment = process.env.NODE_ENV === 'development';
+        if (isDevelopment) {
+            console.warn('[Xendit] DEV MODE: Callback token not configured, allowing webhook');
+            return true;
+        }
+        console.error('[Xendit] SECURITY: Callback token not configured, rejecting webhook');
+        return false;
     }
 
     const callbackToken = headers['x-callback-token'];
@@ -157,11 +163,16 @@ const handleInvoicePaid = async (data) => {
         return { success: true, message: 'Already processed' };
     }
 
-    // Update invoice with payment details
-    await billingService.updateInvoiceStatus(invoice.id, 'paid', {
+    // Update invoice with payment details - atomic update returns null if already processed
+    const updateResult = await billingService.updateInvoiceStatus(invoice.id, 'paid', {
         paymentMethod: payment_method,
         paidAt: new Date(paid_at)
     });
+
+    if (!updateResult) {
+        console.log(`[Xendit] Race condition prevented for invoice ${invoice.id}`);
+        return { success: true, message: 'Already processed (atomic)' };
+    }
 
     // Process successful payment
     await billingService.processSuccessfulPayment(invoice.id);

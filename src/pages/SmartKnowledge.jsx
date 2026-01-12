@@ -19,8 +19,11 @@ import {
     MessageSquare
 } from 'lucide-react'
 import { API_URL } from '../utils/config'
+import toast from 'react-hot-toast'
+import { useConfirm } from '../components/ConfirmDialog'
 
 export default function SmartKnowledge() {
+    const confirm = useConfirm()
     // State
     const [knowledgeBases, setKnowledgeBases] = useState([])
     const [loading, setLoading] = useState(true)
@@ -108,12 +111,12 @@ export default function SmartKnowledge() {
     // Create/Update knowledge base
     const handleSave = async () => {
         if (!formData.name || !formData.content) {
-            alert('Name and content are required')
+            toast.error('Name and content are required')
             return
         }
 
         if (formData.content.length < 50) {
-            alert('Content must be at least 50 characters')
+            toast.error('Content must be at least 50 characters')
             return
         }
 
@@ -149,11 +152,11 @@ export default function SmartKnowledge() {
                 resetForm()
                 fetchKnowledgeBases()
             } else {
-                alert(data.message || 'Failed to save')
+                toast.error(data.message || 'Failed to save')
             }
         } catch (error) {
             console.error('Error saving:', error)
-            alert('An error occurred')
+            toast.error('An error occurred')
         } finally {
             setSaving(false)
         }
@@ -182,7 +185,14 @@ export default function SmartKnowledge() {
 
     // Delete knowledge base
     const handleDelete = async (id) => {
-        if (!confirm('Delete this knowledge base?')) return
+        const isConfirmed = await confirm({
+            title: 'Delete Knowledge Base?',
+            message: 'Are you sure you want to delete this knowledge base?',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            danger: true
+        })
+        if (!isConfirmed) return
 
         try {
             const token = localStorage.getItem('token')

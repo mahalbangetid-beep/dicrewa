@@ -4,8 +4,48 @@ const prisma = require('../utils/prisma');
 const { protect } = require('../middleware/auth');
 const { successResponse, errorResponse, paginatedResponse, parsePagination } = require('../utils/response');
 
+/**
+ * Validate phone number format
+ * Returns cleaned phone or null if invalid
+ */
+const validatePhoneNumber = (phone) => {
+    if (!phone || typeof phone !== 'string') return null;
+    const cleaned = phone.trim().replace(/[^\d+]/g, '');
+
+    // International format with +
+    if (cleaned.startsWith('+') && cleaned.length >= 11 && cleaned.length <= 16) {
+        return cleaned;
+    }
+    // Local format (8-15 digits)
+    if (/^\d{8,15}$/.test(cleaned)) {
+        return cleaned;
+    }
+    return null;
+};
+
 // Apply auth middleware
 router.use(protect);
+
+// GET /api/contacts/tags - Get all unique tags for user
+router.get('/tags', async (req, res, next) => {
+    try {
+        // Multi-tenant: only get tags for this user
+        const tags = await prisma.tag.findMany({
+            where: { userId: req.user.id },
+            select: { name: true },
+            orderBy: { name: 'asc' }
+        });
+
+        const tagNames = tags.map(t => t.name);
+
+        return res.json({
+            success: true,
+            data: tagNames
+        });
+    } catch (error) {
+        next(error);
+    }
+});
 
 // GET /api/contacts - List all contacts
 router.get('/', async (req, res, next) => {
@@ -257,11 +297,26 @@ router.post('/import', async (req, res, next) => {
             return errorResponse(res, 'contacts array is required', 400);
         }
 
-        // Filter valid contacts (must have phone and name)
-        const validContacts = contacts.filter(c => c.phone && c.name);
+        // Validate and filter contacts (must have valid phone and name)
+        let invalidPhones = 0;
+        const validContacts = [];
+
+        for (const c of contacts) {
+            if (!c.name) continue;
+
+            const validatedPhone = validatePhoneNumber(c.phone);
+            if (validatedPhone) {
+                validContacts.push({
+                    ...c,
+                    phone: validatedPhone
+                });
+            } else {
+                invalidPhones++;
+            }
+        }
 
         if (validContacts.length === 0) {
-            return errorResponse(res, 'No valid contacts to import (each must have phone and name)', 400);
+            return errorResponse(res, `No valid contacts to import. ${invalidPhones} contacts have invalid phone numbers.`, 400);
         }
 
         // Check which contacts already exist FOR THIS USER

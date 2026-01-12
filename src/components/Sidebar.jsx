@@ -27,6 +27,7 @@ import {
     Brain,
     Activity
 } from 'lucide-react'
+import { useConfirm } from './ConfirmDialog'
 
 const navigation = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -72,6 +73,7 @@ const monitoringSettingsNav = [
 ]
 
 export default function Sidebar({ collapsed, onToggle }) {
+    const confirm = useConfirm()
     const navigate = useNavigate()
     const [user, setUser] = useState(null)
     const [branding, setBranding] = useState({
@@ -122,8 +124,15 @@ export default function Sidebar({ collapsed, onToggle }) {
         }
     }, [])
 
-    const handleLogout = () => {
-        if (window.confirm('Are you sure you want to logout?')) {
+    const handleLogout = async () => {
+        const isConfirmed = await confirm({
+            title: 'Logout?',
+            message: 'Are you sure you want to log out from this account?',
+            confirmText: 'Yes, Logout',
+            cancelText: 'Cancel',
+            danger: false
+        })
+        if (isConfirmed) {
             localStorage.removeItem('token')
             localStorage.removeItem('user')
             navigate('/login')

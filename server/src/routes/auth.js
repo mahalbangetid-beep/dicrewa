@@ -6,8 +6,9 @@ const prisma = require('../utils/prisma');
 const { successResponse, createdResponse } = require('../utils/response');
 const { AppError } = require('../middleware/errorHandler');
 const { authenticate } = require('../middleware/auth');
-const { authLimiter } = require('../middleware/rateLimiter');
+const { authLimiter, strictLimiter } = require('../middleware/rateLimiter');
 const crypto = require('crypto');
+const securityService = require('../services/securityService');
 
 /**
  * Generate JWT Token
@@ -231,14 +232,24 @@ router.post('/change-password', authenticate, async (req, res, next) => {
             data: { password: hashedPassword }
         });
 
-        successResponse(res, null, 'Password changed successfully');
+        // SECURITY: Invalidate all other sessions except current
+        const currentToken = req.headers.authorization?.replace('Bearer ', '');
+        try {
+            const revokedCount = await securityService.revokeAllSessions(req.user.id, currentToken);
+            console.log(`[Auth] Revoked ${revokedCount} sessions after password change for user ${req.user.id}`);
+        } catch (sessionError) {
+            // Log but don't fail the password change
+            console.error('[Auth] Failed to revoke sessions:', sessionError.message);
+        }
+
+        successResponse(res, null, 'Password changed successfully. Other sessions have been logged out.');
     } catch (error) {
         next(error);
     }
 });
 
 // POST /api/auth/api-keys - Generate new API key
-router.post('/api-keys', authenticate, async (req, res, next) => {
+router.post('/api-keys', authenticate, strictLimiter, async (req, res, next) => {
     try {
         const { name } = req.body;
 

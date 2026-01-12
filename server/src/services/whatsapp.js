@@ -303,6 +303,18 @@ class WhatsAppService {
 
                 if (shouldReconnect && statusCode !== undefined) {
                     console.log(`[WA:${deviceId}] Reconnecting in 5s...`);
+
+                    // Clean up old socket before reconnecting to prevent memory leak
+                    const oldSocket = sessions.get(deviceId);
+                    if (oldSocket) {
+                        try {
+                            oldSocket.ev.removeAllListeners();
+                        } catch (e) {
+                            // Ignore cleanup errors
+                        }
+                        sessions.delete(deviceId);
+                    }
+
                     await delay(5000);
                     await this.createSession(deviceId, callbacks);
                 } else if (statusCode === 401) {
@@ -772,9 +784,15 @@ class WhatsAppService {
 
     /**
      * Format nomor telepon ke JID WhatsApp
+     * Supports international numbers when prefixed with +
+     * Uses DEFAULT_COUNTRY_CODE env variable for local numbers (default: 62 for Indonesia)
+     * @throws Error if number is invalid or empty
      */
     formatJid(number) {
-        if (!number) return '';
+        // Validate input
+        if (!number || (typeof number === 'string' && !number.trim())) {
+            throw new Error('Phone number is required');
+        }
 
         const strNumber = number.toString().trim();
 
@@ -790,15 +808,32 @@ class WhatsAppService {
             return strNumber + '@g.us';
         }
 
-        // Hapus karakter non-digit
-        let cleaned = strNumber.replace(/\D/g, '');
-
-        // Hapus leading 0 dan ganti dengan 62 (Indonesia)
-        if (cleaned.startsWith('0')) {
-            cleaned = '62' + cleaned.substring(1);
+        // Handle international format with + prefix (e.g., +60123456789)
+        if (strNumber.startsWith('+')) {
+            const cleaned = strNumber.substring(1).replace(/\D/g, '');
+            if (cleaned.length < 8) {
+                throw new Error(`Invalid phone number: ${strNumber} (too short)`);
+            }
+            return cleaned + '@s.whatsapp.net';
         }
 
-        // Tambah @s.whatsapp.net
+        // Remove non-digit characters
+        let cleaned = strNumber.replace(/\D/g, '');
+
+        // Validate minimum length (local numbers are at least 8 digits)
+        if (cleaned.length < 8) {
+            throw new Error(`Invalid phone number: ${strNumber} (too short after cleaning)`);
+        }
+
+        // Get default country code from environment (default: 62 for Indonesia)
+        const defaultCountryCode = process.env.DEFAULT_COUNTRY_CODE || '62';
+
+        // Replace leading 0 with configured country code
+        if (cleaned.startsWith('0')) {
+            cleaned = defaultCountryCode + cleaned.substring(1);
+        }
+
+        // Add @s.whatsapp.net suffix
         return cleaned + '@s.whatsapp.net';
     }
 
